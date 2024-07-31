@@ -1,0 +1,23 @@
+plugins {
+    id 'java'
+    id "io.freefair.lombok" version "6.3.0"
+}
+
+group = 'e5.stateservice'
+version = '0.1'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.postgresql:postgresql:42.2.23'
+    implementation 'org.hibernate:hibernate-core:5.4.32.Final'
+    implementation 'com.zaxxer:HikariCP:4.0.3'
+    implementation 'javax.persistence:javax.persistence-api:2.2'
+    implementation group: 'org.reflections', name: 'reflections', version: '0.10.2'
+}
+
+test {
+    useJUnitPlatform()
+}
