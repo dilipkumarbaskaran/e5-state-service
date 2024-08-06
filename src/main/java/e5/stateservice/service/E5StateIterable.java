@@ -1,13 +1,10 @@
 package e5.stateservice.service;
 
-import e5.stateservice.examples.model.UsersField;
 import e5.stateservice.model.E5FieldEnum;
 import e5.stateservice.model.E5State;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.query.Query;
-
-import java.util.List;
 
 public final class E5StateIterable<T extends E5State, F extends Enum<F> & E5FieldEnum> {
     private final Class<T> entityClass;

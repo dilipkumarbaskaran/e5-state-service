@@ -1,13 +1,63 @@
+buildscript {
+    repositories {
+        mavenCentral()
+
+    }
+    dependencies {
+        //Check for the latest version here: http://plugins.gradle.org/plugin/com.jfrog.artifactory
+        classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4+"
+    }
+}
+
 plugins {
     id 'java'
     id "io.freefair.lombok" version "6.3.0"
+    id "org.sonarqube" version "3.0"
+    id "com.jfrog.artifactory" version "4.29.0"
+    id 'com.github.johnrengelman.shadow' version '7.1.0'
 }
 
-group = 'e5.stateservice'
+group = 'e5.state'
 version = '0.1'
 
 repositories {
     mavenCentral()
+}
+
+repositories {
+    mavenCentral()
+}
+allprojects {
+    apply plugin: "com.jfrog.artifactory"
+    apply plugin: 'maven-publish'
+}
+configurations {
+    // configuration that holds jars to include in the jar
+    extraLibs
+}
+
+jar {
+    destinationDirectory.set(file("com/e5"))
+
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+}
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}
+
+ext {
+    slf4jVersion = '1.7.25'
+    jettyVersion = '9.4.6.v20170531'
+    jerseyVersion = '2.27'
+    junitJupiterVersion  = '5.8.1'
 }
 
 dependencies {
@@ -16,8 +66,45 @@ dependencies {
     implementation 'com.zaxxer:HikariCP:4.0.3'
     implementation 'javax.persistence:javax.persistence-api:2.2'
     implementation group: 'org.reflections', name: 'reflections', version: '0.10.2'
+
+
+    testImplementation("org.junit.jupiter:junit-jupiter-api:${junitJupiterVersion}")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:${junitJupiterVersion}")
 }
 
 test {
     useJUnitPlatform()
+}
+
+tasks.withType(Jar) {
+    zip64 true
+}
+
+sonarqube {
+    properties {
+        property "sonar.sourceEncoding", "UTF-8"
+        property "sonar.jacoco.reportPath", "test.exec"
+    }
+}
+
+artifactory {
+    contextUrl = "${artifactory_contextUrl}"   //The base Artifactory URL if not overridden by the publisher/resolver
+    publish {
+        repository {
+            repoKey = 'automation-fabric-libs'
+            username = "${ARTIFACTORY_CREDS_USR}"
+            password = "${ARTIFACTORY_CREDS_PSW}"
+        }
+        defaults {
+            publications("mavenJava")
+        }
+    }
+    resolve {
+        repository {
+            repoKey = 'automation-fabric-libs'
+            username = "${ARTIFACTORY_CREDS_USR}"
+            password = "${ARTIFACTORY_CREDS_PSW}"
+            maven = true
+        }
+    }
 }

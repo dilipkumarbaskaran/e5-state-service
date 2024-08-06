@@ -1,4 +1,4 @@
-package e5.stateservice.examples.model;
+package e5.stateservice.model.state;
 
 import e5.stateservice.model.E5FieldEnum;
 

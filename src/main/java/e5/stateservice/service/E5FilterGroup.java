@@ -1,10 +1,10 @@
 package e5.stateservice.service;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import e5.stateservice.model.E5FieldEnum;
 import e5.stateservice.model.E5State;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public final class E5FilterGroup<T extends E5State, F extends Enum<F> & E5FieldEnum> {
     public enum LogicalOperator {
