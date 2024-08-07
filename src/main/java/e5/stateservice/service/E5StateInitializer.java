@@ -44,6 +44,9 @@ public class E5StateInitializer {
         configuration.setProperty("hibernate.hbm2ddl.auto", "validate");
         configuration.setProperty("hibernate.show_sql", "true");
 
+        configuration.setProperty("hibernate.format_sql","true");
+        configuration.setProperty("hibernate.use_sql_comments", "true");
+
         var serviceRegistry = new StandardServiceRegistryBuilder()
                 .applySettings(configuration.getProperties()).build();
         Reflections reflections = new Reflections("e5."+getAppName().toLowerCase()+".model.state");
@@ -114,7 +117,7 @@ public class E5StateInitializer {
             String line;
             while ((line = bufferedReader.readLine()) != null) {
                 if (line.trim().startsWith(ROOT_PROJECT_NAME)) {
-                    return line.trim().split("=")[1].replace("'", "").trim();
+                    return line.trim().split("=")[1].replace("'", "").trim().replaceAll("[^A-Za-z0-9]","").toLowerCase();
                 }
             }
         } catch (FileNotFoundException e) {
