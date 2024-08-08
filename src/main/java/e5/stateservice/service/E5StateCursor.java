@@ -1,18 +1,23 @@
 package e5.stateservice.service;
 
 
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import org.hibernate.Session;
 import org.hibernate.query.Query;
 
+import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+@NoArgsConstructor
+@AllArgsConstructor
 public final class E5StateCursor<T> implements Iterator<T>, AutoCloseable {
-    private final Class<T> entityClass;
-    private final Session session;
-    private final Query<T> query;
-    private final int batchSize;
+    private Class<T> entityClass;
+    private Session session;
+    private Query<T> query;
+    private int batchSize;
     private int currentIndex;
     private List<T> currentBatch;
 
@@ -20,17 +25,21 @@ public final class E5StateCursor<T> implements Iterator<T>, AutoCloseable {
         this.entityClass = entityClass;
         this.session = session;
         this.query = query;
-        this.batchSize = batchSize;
+        this.batchSize = batchSize; // not used in initial release
         this.currentIndex = 0;
         fetchNextBatch();
     }
 
     private void fetchNextBatch() {
         query.setFirstResult(currentIndex);
-        query.setMaxResults(batchSize);
+        //query.setMaxResults(batchSize);
         System.out.println("query " + query.getQueryString());
         currentBatch = query.list();
         currentIndex += currentBatch.size();
+    }
+
+    public List<T> list() {
+        return currentBatch;
     }
 
     @Override

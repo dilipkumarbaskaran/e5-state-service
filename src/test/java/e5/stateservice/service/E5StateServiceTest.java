@@ -3,98 +3,143 @@ package e5.stateservice.service;
 import e5.stateservice.model.E5StateServiceProperties;
 import e5.stateservice.model.state.Users;
 import e5.stateservice.model.state.UsersField;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 public class E5StateServiceTest {
 
+    @BeforeEach
+    public void setupStateService() {
+        E5StateServiceProperties stateServiceProps = E5StateServiceProperties.builder()
+                .endpoint("localhost:5432")
+                .dbName("yourdb")
+                .schemaName("schema1")
+                .dbUserName("postgres")
+                .dbPassword("pgadmin").build();
+        E5StateServiceInitializer.init(stateServiceProps);
+    }
+
     @Test
-    public void testStateService() {
-            E5StateServiceProperties stateServiceProps = E5StateServiceProperties.builder()
-                    .endpoint("localhost:5432")
-                    .dbName("yourdb")
-                    .schemaName("schema1")
-                    .dbUserName("postgres")
-                    .dbPassword("pgadmin").build();
-            E5StateInitializer.init(stateServiceProps);
-            // Insert a new user
-            Users newUser = new Users();
-            newUser.setName("John Doe");
-            newUser.setEmail("john.doe@example.com");
-            E5StateService.insertOne(newUser);
+    public void testInsert() {
 
-            // Fetch users with filters, sorting, limit, and skip
-            E5FilterOptions<Users, UsersField> E5FilterOptions1 = new E5FilterOptions<Users, UsersField>()
-                    .eq(UsersField.NAME, "John Doe")
-                    .gt(UsersField.ID, 1);
+        E5FilterOptions<Users, UsersField> E5FilterOptions1 = new E5FilterOptions<Users, UsersField>()
+                .eq(UsersField.NAME, "John Doe")
+                .gt(UsersField.ID, 1);
 
-            E5FilterOptions<Users, UsersField> E5FilterOptions2 = new E5FilterOptions<Users, UsersField>()
-                    .lt(UsersField.ID, 100);
+        E5FilterOptions<Users, UsersField> E5FilterOptions2 = new E5FilterOptions<Users, UsersField>()
+                .lt(UsersField.ID, 100);
 
-            E5FilterGroup<Users, UsersField> filterGroup = new E5FilterGroup<Users, UsersField>(E5FilterGroup.LogicalOperator.OR)
-                    .addFilter(E5FilterOptions1)
-                    .addFilter(E5FilterOptions2);
+        E5FilterGroup<Users, UsersField> filterGroup = new E5FilterGroup<Users, UsersField>(E5FilterGroup.LogicalOperator.OR)
+                .addFilter(E5FilterOptions1)
+                .addFilter(E5FilterOptions2);
 
-            E5FilterOptions<Users, UsersField> combinedE5FilterOptions = new E5FilterOptions<Users, UsersField>()
-                    .lt(UsersField.ID, 1000)
-                    .addGroup(filterGroup);
+        E5FilterOptions<Users, UsersField> combinedE5FilterOptions = new E5FilterOptions<Users, UsersField>()
+                .lt(UsersField.ID, 1000)
+                .addGroup(filterGroup);
 
-            try (var cursor = E5StateService.find(Users.class, UsersField.class)
-                    .filter(combinedE5FilterOptions)
-                    .sort(UsersField.NAME, true)
-                    .limit(10)
-                    .iterator()) {
+        int countPrevious = E5StateService.find(Users.class, UsersField.class)
+                .filter(combinedE5FilterOptions)
+                .sort(UsersField.NAME, true)
+                .list().size();
+        // Insert a new user
+        Users newUser = new Users();
+        newUser.setName("John Doe");
+        newUser.setEmail("john.doe@example.com");
+        newUser = E5StateService.insertOne(newUser);
 
-                while (cursor.hasNext()) {
-                    Users user = (Users) cursor.next();
-                    System.out.println("Users -- " + user.toString());
-                }
-            }
+        Assertions.assertTrue(newUser.getId()!=0);
 
-        /*// Update a user
+        int countAfter = E5StateService.find(Users.class, UsersField.class)
+                .filter(combinedE5FilterOptions)
+                .sort(UsersField.NAME, true)
+                .list().size();
+
+        Assertions.assertEquals(countPrevious+1, countAfter);
+
+    }
+
+    @Test
+    public void testUpdate() {
+        // Fetch users with filters, sorting, limit, and skip
+        E5FilterOptions<Users, UsersField> E5FilterOptions1 = new E5FilterOptions<Users, UsersField>()
+                .eq(UsersField.NAME, "John Doe")
+                .gt(UsersField.ID, 1);
+
+        E5FilterOptions<Users, UsersField> E5FilterOptions2 = new E5FilterOptions<Users, UsersField>()
+                .lt(UsersField.ID, 100);
+
+        E5FilterGroup<Users, UsersField> filterGroup = new E5FilterGroup<Users, UsersField>(E5FilterGroup.LogicalOperator.OR)
+                .addFilter(E5FilterOptions1)
+                .addFilter(E5FilterOptions2);
+
+        E5FilterOptions<Users, UsersField> combinedE5FilterOptions = new E5FilterOptions<Users, UsersField>()
+                .lt(UsersField.ID, 1000)
+                .addGroup(filterGroup);
+        // Update a user
         try (var cursor = E5StateService.find(Users.class,UsersField.class)
                 .filter(combinedE5FilterOptions).iterator()) {
-            if (cursor.hasNext()) {
-                Users userToUpdate = (Users) cursor.next();
-                userToUpdate.setEmail("john.doe_updated@example.com");
+            Users userToUpdate;
+            while (cursor.hasNext()) {
+                userToUpdate = (Users) cursor.next();
+                userToUpdate.setEmail("john.doe_" + userToUpdate.getId() + "1111@example.com");
                 E5StateService.updateOne(userToUpdate);
             }
         }
 
         try (var cursor = E5StateService.find(Users.class, UsersField.class)
                 .filter(combinedE5FilterOptions)
-                .sort(UsersField.ID, true)
-                .limit(10)
-                .skip(0)
-                .batchSize(5)
                 .iterator()) {
 
             while (cursor.hasNext()) {
-                Users user = (Users) cursor.next();
-                System.out.println("Users -- " + user.toString());
+                Users user = cursor.next();
+                Assertions.assertEquals("john.doe_" + user.getId() + "@example.com", user.getEmail());
             }
         }
+    }
 
-        // Delete a user
-        try (var cursor = E5StateService.find(Users.class, UsersField.class)
-                .filter(combinedE5FilterOptions)
-                .iterator()) {
-            if (cursor.hasNext()) {
-                E5StateService.deleteOne(Users.class, ((Users)cursor.next()).getId());
-            }
-        }
+    @Test
+    public void testDelete() {
+        // Fetch users with filters, sorting, limit, and skip
+        E5FilterOptions<Users, UsersField> E5FilterOptions1 = new E5FilterOptions<Users, UsersField>()
+                .eq(UsersField.NAME, "John Doe")
+                .gt(UsersField.ID, 1);
 
-        try (var cursor = E5StateService.find(Users.class, UsersField.class)
+        E5FilterOptions<Users, UsersField> E5FilterOptions2 = new E5FilterOptions<Users, UsersField>()
+                .lt(UsersField.ID, 100);
+
+        E5FilterGroup<Users, UsersField> filterGroup = new E5FilterGroup<Users, UsersField>(E5FilterGroup.LogicalOperator.OR)
+                .addFilter(E5FilterOptions1)
+                .addFilter(E5FilterOptions2);
+
+        E5FilterOptions<Users, UsersField> combinedE5FilterOptions = new E5FilterOptions<Users, UsersField>()
+                .lt(UsersField.ID, 1000)
+                .addGroup(filterGroup);
+
+        int countBefore = E5StateService.find(Users.class, UsersField.class)
                 .filter(combinedE5FilterOptions)
                 .sort(UsersField.NAME, true)
-                .limit(10)
-                .skip(0)
-                .batchSize(5)
-                .iterator()) {
+                .list().size();
 
-            while (cursor.hasNext()) {
-                Users user = (Users) cursor.next();
-                System.out.println("User -- " + user.toString());
+        if (countBefore>0) {
+            // Delete a user
+            try (var cursor = E5StateService.find(Users.class, UsersField.class)
+                    .filter(combinedE5FilterOptions)
+                    .iterator()) {
+                if (cursor.hasNext()) {
+                    E5StateService.deleteOne(Users.class, ((Users) cursor.next()).getId());
+                }
             }
-        }*/
+
+            int countAfter = E5StateService.find(Users.class, UsersField.class)
+                    .filter(combinedE5FilterOptions)
+                    .sort(UsersField.NAME, true)
+                    .list().size();
+
+            Assertions.assertEquals(countBefore - 1, countAfter);
+        }
+
     }
 }

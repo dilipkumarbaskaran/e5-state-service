@@ -2,11 +2,15 @@ package e5.stateservice.service;
 
 import e5.stateservice.model.E5FieldEnum;
 import e5.stateservice.model.E5State;
+import lombok.Getter;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.query.Query;
 
+import java.util.List;
+
 public final class E5StateIterable<T extends E5State, F extends Enum<F> & E5FieldEnum> {
+    @Getter
     private final Class<T> entityClass;
     private final SessionFactory sessionFactory;
     private E5FilterOptions<T, F> filterOptions;
@@ -14,7 +18,7 @@ public final class E5StateIterable<T extends E5State, F extends Enum<F> & E5Fiel
     private boolean ascending = true;
     private int limit = -1;
     private int skip = 0;
-    private int batchSize = 50;
+    private int batchSize = 50; // not used in initial release
 
     public E5StateIterable(Class<T> entityClass, SessionFactory sessionFactory) {
         this.entityClass = entityClass;
@@ -49,6 +53,19 @@ public final class E5StateIterable<T extends E5State, F extends Enum<F> & E5Fiel
 
     public E5StateCursor<T> iterator() {
         Session session = sessionFactory.openSession();
+        return new E5StateCursor<>(entityClass, session, this.createQuery(session), batchSize);
+    }
+
+    public List<T> list() {
+        Session session = sessionFactory.openSession();
+        E5StateCursor<T> e5StateCursor = new E5StateCursor<>(entityClass, session, this.createQuery(sessionFactory.openSession()), batchSize);
+        List<T> recordList = e5StateCursor.list();
+        e5StateCursor.close();
+        return recordList;
+    }
+
+
+    private Query createQuery(Session session) {
         StringBuilder hql = new StringBuilder("FROM " + entityClass.getName());
 
         if (filterOptions != null) {
@@ -72,6 +89,6 @@ public final class E5StateIterable<T extends E5State, F extends Enum<F> & E5Fiel
             query.setFirstResult(skip);
         }
 
-        return new E5StateCursor<>(entityClass, session, query, batchSize);
+        return query;
     }
 }

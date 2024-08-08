@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Set;
 
-public class E5StateInitializer {
+public class E5StateServiceInitializer {
     protected static SessionFactory sessionFactory;
     private static final String GRADLE_SETTINGS_FILE_NAME = "settings.gradle";
     private static final String ROOT_PROJECT_NAME = "rootProject.name";
@@ -44,9 +44,6 @@ public class E5StateInitializer {
         configuration.setProperty("hibernate.hbm2ddl.auto", "validate");
         configuration.setProperty("hibernate.show_sql", "true");
 
-        configuration.setProperty("hibernate.format_sql","true");
-        configuration.setProperty("hibernate.use_sql_comments", "true");
-
         var serviceRegistry = new StandardServiceRegistryBuilder()
                 .applySettings(configuration.getProperties()).build();
         Reflections reflections = new Reflections("e5."+getAppName().toLowerCase()+".model.state");
@@ -68,7 +65,7 @@ public class E5StateInitializer {
         }
     }
 
-    private static boolean isChangesPresent(Metadata metadata) throws Exception {
+    private static ChangeResult isChangesPresent(Metadata metadata) throws Exception {
         try {
             // Validate the schema
             new org.hibernate.tool.hbm2ddl.SchemaValidator().validate(metadata);
@@ -84,11 +81,10 @@ public class E5StateInitializer {
             metadata.getSessionFactoryBuilder().build();
         } catch (Exception e) {
             if (!e.getMessage().contains("missing table")) {
-                return true;
+                return ChangeResult.builder().changesAvailable(true).result(e).build();
             }
-            throw new Exception("Could see changes in the schema", e);
         }
-        return false;
+        return ChangeResult.builder().changesAvailable(false).build();
     }
 
     private static boolean canMakeSchemaChanges(StandardServiceRegistry serviceRegistry, Set<Class<? extends E5State>> modelClasses) throws Exception {
@@ -99,15 +95,16 @@ public class E5StateInitializer {
         modelClasses.forEach(modelClass -> metadataSources.addAnnotatedClass(modelClass));
 
         var buildMetadata = metadataSources.buildMetadata();
-        if (isChangesPresent(buildMetadata)) {
-            System.out.println("Changes not done");
-            return false;
+        ChangeResult changeResult;
+        if ((changeResult = isChangesPresent(buildMetadata)).isChangesAvailable()) {
+            //System.out.println("Changes not done");
+            throw new Exception("Schema changes not done!", ((Exception)changeResult.getResult()));
         }
         var schemaExport = new org.hibernate.tool.hbm2ddl.SchemaExport();
         //schemaExport.perform(SchemaExport.Action.BOTH, metadata, new ScriptTargetOutputToFile(new File("/home/dilipkumar.baskaran/IdeaProjects/SQLGenerationPOC/src/main/resources/ddl.sql"), "US-ASCII"));
         schemaExport.setDelimiter(";");
-        schemaExport.setOutputFile("src/main/resources/ddl.sql");
-        schemaExport.createOnly(EnumSet.of(TargetType.SCRIPT, TargetType.DATABASE,TargetType.STDOUT), buildMetadata);
+        //schemaExport.setOutputFile("src/main/resources/ddl.sql");
+        schemaExport.createOnly(EnumSet.of(TargetType.DATABASE,TargetType.STDOUT), buildMetadata);
         return true;
     }
 
