@@ -1,4 +1,4 @@
 package e5.stateservice.model;
 
-public class E5State {
+public interface E5State {
 }

@@ -11,7 +11,7 @@ import javax.persistence.*;
 @Table(name="Users", indexes = {
         @Index(name = "idx_user_name", columnList = "name")
 })
-public class Users extends E5State {
+public class Users implements E5State {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;

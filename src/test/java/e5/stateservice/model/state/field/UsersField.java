@@ -1,4 +1,4 @@
-package e5.stateservice.model.state;
+package e5.stateservice.model.state.field;
 
 import e5.stateservice.model.E5FieldEnum;
 
@@ -12,8 +12,6 @@ public enum UsersField implements E5FieldEnum {
     UsersField(String fieldName) {
         this.fieldName = fieldName;
     }
-
-    @Override
     public String getFieldName() {
         return fieldName;
     }

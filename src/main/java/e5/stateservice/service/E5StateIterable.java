@@ -8,6 +8,7 @@ import org.hibernate.SessionFactory;
 import org.hibernate.query.Query;
 
 import java.util.List;
+import java.util.Locale;
 
 public final class E5StateIterable<T extends E5State, F extends Enum<F> & E5FieldEnum> {
     @Getter
@@ -31,7 +32,7 @@ public final class E5StateIterable<T extends E5State, F extends Enum<F> & E5Fiel
     }
 
     public E5StateIterable<T, F> sort(F field, boolean ascending) {
-        this.sortField = field.getFieldName();
+        this.sortField = field.name().toLowerCase(Locale.ROOT);
         this.ascending = ascending;
         return this;
     }

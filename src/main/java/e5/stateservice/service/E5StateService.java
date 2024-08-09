@@ -28,7 +28,7 @@ public final class E5StateService {
     }
 
     @Transactional
-    public static <T> List<T> insertMany(List<T> entities) {
+    public static <T extends E5State> List<T> insertMany(List<T> entities) {
         executeInsideTransaction(session -> {
             for (int i = 0; i < entities.size(); i++) {
                 session.save(entities.get(i));
@@ -49,7 +49,7 @@ public final class E5StateService {
         return entity;
     }
 
-    public static <T> List<T> updateMany(List<T> entities) {
+    public static <T extends E5State> List<T> updateMany(List<T> entities) {
         executeInsideTransaction(session -> {
             for (int i = 0; i < entities.size(); i++) {
                 session.update(entities.get(i));

@@ -2,12 +2,11 @@ package e5.stateservice.service;
 
 import e5.stateservice.model.E5StateServiceProperties;
 import e5.stateservice.model.state.Users;
-import e5.stateservice.model.state.UsersField;
+import e5.stateservice.model.state.field.UsersField;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 
 public class E5StateServiceTest {
 
@@ -95,7 +94,7 @@ public class E5StateServiceTest {
 
             while (cursor.hasNext()) {
                 Users user = cursor.next();
-                Assertions.assertEquals("john.doe_" + user.getId() + "@example.com", user.getEmail());
+                Assertions.assertEquals("john.doe_" + user.getId() + "1111@example.com", user.getEmail());
             }
         }
     }

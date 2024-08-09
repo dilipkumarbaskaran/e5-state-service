@@ -6,23 +6,24 @@ import org.hibernate.query.Query;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public final class E5FilterOptions<T extends E5State, F extends Enum<F> & E5FieldEnum> {
     private final List<E5FilterCriterion> criteria = new ArrayList<>();
     private final List<E5FilterGroup<T, F>> groups = new ArrayList<>();
 
     public E5FilterOptions<T, F> eq(F field, Object value) {
-        criteria.add(new E5FilterCriterion(field.getFieldName(), value, " = "));
+        criteria.add(new E5FilterCriterion(field.name().toLowerCase(Locale.ROOT), value, " = "));
         return this;
     }
 
     public E5FilterOptions<T, F> lt(F field, Object value) {
-        criteria.add(new E5FilterCriterion(field.getFieldName(), value, " < "));
+        criteria.add(new E5FilterCriterion(field.name().toLowerCase(Locale.ROOT), value, " < "));
         return this;
     }
 
     public E5FilterOptions<T, F> gt(F field, Object value) {
-        criteria.add(new E5FilterCriterion(field.getFieldName(), value, " > "));
+        criteria.add(new E5FilterCriterion(field.name().toLowerCase(Locale.ROOT), value, " > "));
         return this;
     }
 
