@@ -1,6 +1,5 @@
 package e5.stateservice.service;
 
-import e5.stateservice.model.E5FieldEnum;
 import e5.stateservice.model.E5State;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
@@ -13,8 +12,8 @@ public final class E5StateService {
 
     public static final int BATCH_SIZE_SESSION_FLUSH = 20;
 
-    public static <T extends E5State, F extends Enum<F> & E5FieldEnum> E5StateIterable<T, F> find(Class<T> entityClass, Class<F> FieldENum) {
-        return new E5StateIterable<T, F>(entityClass, E5StateServiceInitializer.sessionFactory);
+    public static <T extends E5State> E5StateIterable<T> find(Class<T> entityClass) {
+        return new E5StateIterable<T>(entityClass, E5StateServiceInitializer.sessionFactory);
     }
 
     @Transactional

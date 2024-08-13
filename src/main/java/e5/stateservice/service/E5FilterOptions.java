@@ -1,6 +1,6 @@
 package e5.stateservice.service;
 
-import e5.stateservice.model.E5FieldEnum;
+import e5.stateservice.model.E5SearchField;
 import e5.stateservice.model.E5State;
 import org.hibernate.query.Query;
 
@@ -8,26 +8,26 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-public final class E5FilterOptions<T extends E5State, F extends Enum<F> & E5FieldEnum> {
+public final class E5FilterOptions<T extends E5State> {
     private final List<E5FilterCriterion> criteria = new ArrayList<>();
-    private final List<E5FilterGroup<T, F>> groups = new ArrayList<>();
+    private final List<E5FilterGroup<T>> groups = new ArrayList<>();
 
-    public E5FilterOptions<T, F> eq(F field, Object value) {
-        criteria.add(new E5FilterCriterion(field.name().toLowerCase(Locale.ROOT), value, " = "));
+    public <F> E5FilterOptions<T> eq(E5SearchField<T, F> field, F value) {
+        criteria.add(new E5FilterCriterion(field.getName().toLowerCase(Locale.ROOT), value, " = "));
         return this;
     }
 
-    public E5FilterOptions<T, F> lt(F field, Object value) {
-        criteria.add(new E5FilterCriterion(field.name().toLowerCase(Locale.ROOT), value, " < "));
+    public<F> E5FilterOptions<T> lt(E5SearchField<T, F> field, F value) {
+        criteria.add(new E5FilterCriterion(field.getName().toLowerCase(Locale.ROOT), value, " < "));
         return this;
     }
 
-    public E5FilterOptions<T, F> gt(F field, Object value) {
-        criteria.add(new E5FilterCriterion(field.name().toLowerCase(Locale.ROOT), value, " > "));
+    public <F> E5FilterOptions<T> gt(E5SearchField<T, F> field, F value) {
+        criteria.add(new E5FilterCriterion(field.getName().toLowerCase(Locale.ROOT), value, " > "));
         return this;
     }
 
-    public E5FilterOptions<T, F> addGroup(E5FilterGroup<T, F> group) {
+    public E5FilterOptions<T> addGroup(E5FilterGroup<T> group) {
         groups.add(group);
         return this;
     }
@@ -46,7 +46,7 @@ public final class E5FilterOptions<T extends E5State, F extends Enum<F> & E5Fiel
                 hql.delete(hql.length() - 5, hql.length());
             }// Remove last " AND "
         }
-        for (E5FilterGroup<T, F> group : groups) {
+        for (E5FilterGroup<T> group : groups) {
             hql.append(" (");
             /*if (criteria.isEmpty()) {
                 hql.append(" WHERE ");
@@ -55,7 +55,7 @@ public final class E5FilterOptions<T extends E5State, F extends Enum<F> & E5Fiel
                 hql.append(group.getOperator() == E5FilterGroup.LogicalOperator.AND ? " AND (" : " OR (");
             }*/
 
-            for (E5FilterOptions<T, F> filter : group.getFilters()) {
+            for (E5FilterOptions<T> filter : group.getFilters()) {
                 hql.append(filter.toHql()).append(" ").append(group.getOperator()).append(" ");
             }
             hql.delete(hql.length() - (" " + group.getOperator() + " ").length(), hql.length()); // Remove last " AND "
@@ -70,8 +70,8 @@ public final class E5FilterOptions<T extends E5State, F extends Enum<F> & E5Fiel
             query.setParameter(criterion.getFieldParamName(), criterion.getValue());
         }
 
-        for (E5FilterGroup<T, F> group : groups) {
-            for (E5FilterOptions<T, F> filter : group.getFilters()) {
+        for (E5FilterGroup<T> group : groups) {
+            for (E5FilterOptions<T> filter : group.getFilters()) {
                 filter.setParameters(query);
             }
         }

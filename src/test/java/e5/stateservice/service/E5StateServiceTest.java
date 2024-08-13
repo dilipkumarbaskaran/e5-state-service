@@ -2,7 +2,6 @@ package e5.stateservice.service;
 
 import e5.stateservice.model.E5StateServiceProperties;
 import e5.stateservice.model.state.Users;
-import e5.stateservice.model.state.field.UsersField;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,24 +23,24 @@ public class E5StateServiceTest {
     @Test
     public void testInsert() {
 
-        E5FilterOptions<Users, UsersField> E5FilterOptions1 = new E5FilterOptions<Users, UsersField>()
-                .eq(UsersField.NAME, "John Doe")
-                .gt(UsersField.ID, 1);
+        E5FilterOptions<Users> E5FilterOptions1 = new E5FilterOptions<Users>()
+                .eq(Users.NAME, "John Doe")
+                .gt(Users.ID, 1);
 
-        E5FilterOptions<Users, UsersField> E5FilterOptions2 = new E5FilterOptions<Users, UsersField>()
-                .lt(UsersField.ID, 100);
+        E5FilterOptions<Users> E5FilterOptions2 = new E5FilterOptions<Users>()
+                .lt(Users.ID, 100);
 
-        E5FilterGroup<Users, UsersField> filterGroup = new E5FilterGroup<Users, UsersField>(E5FilterGroup.LogicalOperator.OR)
+        E5FilterGroup<Users> filterGroup = new E5FilterGroup<Users>(E5FilterGroup.LogicalOperator.OR)
                 .addFilter(E5FilterOptions1)
                 .addFilter(E5FilterOptions2);
 
-        E5FilterOptions<Users, UsersField> combinedE5FilterOptions = new E5FilterOptions<Users, UsersField>()
-                .lt(UsersField.ID, 1000)
+        E5FilterOptions<Users> combinedE5FilterOptions = new E5FilterOptions<Users>()
+                .lt(Users.ID, 1000)
                 .addGroup(filterGroup);
 
-        int countPrevious = E5StateService.find(Users.class, UsersField.class)
+        int countPrevious = E5StateService.find(Users.class)
                 .filter(combinedE5FilterOptions)
-                .sort(UsersField.NAME, true)
+                .sort(Users.NAME, true)
                 .list().size();
         // Insert a new user
         Users newUser = new Users();
@@ -51,9 +50,9 @@ public class E5StateServiceTest {
 
         Assertions.assertTrue(newUser.getId()!=0);
 
-        int countAfter = E5StateService.find(Users.class, UsersField.class)
+        int countAfter = E5StateService.find(Users.class)
                 .filter(combinedE5FilterOptions)
-                .sort(UsersField.NAME, true)
+                .sort(Users.NAME, true)
                 .list().size();
 
         Assertions.assertEquals(countPrevious+1, countAfter);
@@ -63,22 +62,22 @@ public class E5StateServiceTest {
     @Test
     public void testUpdate() {
         // Fetch users with filters, sorting, limit, and skip
-        E5FilterOptions<Users, UsersField> E5FilterOptions1 = new E5FilterOptions<Users, UsersField>()
-                .eq(UsersField.NAME, "John Doe")
-                .gt(UsersField.ID, 1);
+        E5FilterOptions<Users> E5FilterOptions1 = new E5FilterOptions<Users>()
+                .eq(Users.NAME, "John Doe")
+                .gt(Users.ID, 1);
 
-        E5FilterOptions<Users, UsersField> E5FilterOptions2 = new E5FilterOptions<Users, UsersField>()
-                .lt(UsersField.ID, 100);
+        E5FilterOptions<Users> E5FilterOptions2 = new E5FilterOptions<Users>()
+                .lt(Users.ID, 100);
 
-        E5FilterGroup<Users, UsersField> filterGroup = new E5FilterGroup<Users, UsersField>(E5FilterGroup.LogicalOperator.OR)
+        E5FilterGroup<Users> filterGroup = new E5FilterGroup<Users>(E5FilterGroup.LogicalOperator.OR)
                 .addFilter(E5FilterOptions1)
                 .addFilter(E5FilterOptions2);
 
-        E5FilterOptions<Users, UsersField> combinedE5FilterOptions = new E5FilterOptions<Users, UsersField>()
-                .lt(UsersField.ID, 1000)
+        E5FilterOptions<Users> combinedE5FilterOptions = new E5FilterOptions<Users>()
+                .lt(Users.ID, 1000)
                 .addGroup(filterGroup);
         // Update a user
-        try (var cursor = E5StateService.find(Users.class,UsersField.class)
+        try (var cursor = E5StateService.find(Users.class)
                 .filter(combinedE5FilterOptions).iterator()) {
             Users userToUpdate;
             while (cursor.hasNext()) {
@@ -88,7 +87,7 @@ public class E5StateServiceTest {
             }
         }
 
-        try (var cursor = E5StateService.find(Users.class, UsersField.class)
+        try (var cursor = E5StateService.find(Users.class)
                 .filter(combinedE5FilterOptions)
                 .iterator()) {
 
@@ -102,29 +101,29 @@ public class E5StateServiceTest {
     @Test
     public void testDelete() {
         // Fetch users with filters, sorting, limit, and skip
-        E5FilterOptions<Users, UsersField> E5FilterOptions1 = new E5FilterOptions<Users, UsersField>()
-                .eq(UsersField.NAME, "John Doe")
-                .gt(UsersField.ID, 1);
+        E5FilterOptions<Users> E5FilterOptions1 = new E5FilterOptions<Users>()
+                .eq(Users.NAME, "John Doe")
+                .gt(Users.ID, 1);
 
-        E5FilterOptions<Users, UsersField> E5FilterOptions2 = new E5FilterOptions<Users, UsersField>()
-                .lt(UsersField.ID, 100);
+        E5FilterOptions<Users> E5FilterOptions2 = new E5FilterOptions<Users>()
+                .lt(Users.ID, 100);
 
-        E5FilterGroup<Users, UsersField> filterGroup = new E5FilterGroup<Users, UsersField>(E5FilterGroup.LogicalOperator.OR)
+        E5FilterGroup<Users> filterGroup = new E5FilterGroup<Users>(E5FilterGroup.LogicalOperator.OR)
                 .addFilter(E5FilterOptions1)
                 .addFilter(E5FilterOptions2);
 
-        E5FilterOptions<Users, UsersField> combinedE5FilterOptions = new E5FilterOptions<Users, UsersField>()
-                .lt(UsersField.ID, 1000)
+        E5FilterOptions<Users> combinedE5FilterOptions = new E5FilterOptions<Users>()
+                .lt(Users.ID, 1000)
                 .addGroup(filterGroup);
 
-        int countBefore = E5StateService.find(Users.class, UsersField.class)
+        int countBefore = E5StateService.find(Users.class)
                 .filter(combinedE5FilterOptions)
-                .sort(UsersField.NAME, true)
+                .sort(Users.NAME, true)
                 .list().size();
 
         if (countBefore>0) {
             // Delete a user
-            try (var cursor = E5StateService.find(Users.class, UsersField.class)
+            try (var cursor = E5StateService.find(Users.class)
                     .filter(combinedE5FilterOptions)
                     .iterator()) {
                 if (cursor.hasNext()) {
@@ -132,9 +131,9 @@ public class E5StateServiceTest {
                 }
             }
 
-            int countAfter = E5StateService.find(Users.class, UsersField.class)
+            int countAfter = E5StateService.find(Users.class)
                     .filter(combinedE5FilterOptions)
-                    .sort(UsersField.NAME, true)
+                    .sort(Users.NAME, true)
                     .list().size();
 
             Assertions.assertEquals(countBefore - 1, countAfter);

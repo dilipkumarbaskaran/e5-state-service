@@ -1,6 +1,6 @@
 package e5.stateservice.service;
 
-import e5.stateservice.model.E5FieldEnum;
+import e5.stateservice.model.E5SearchField;
 import e5.stateservice.model.E5State;
 import lombok.Getter;
 import org.hibernate.Session;
@@ -10,11 +10,11 @@ import org.hibernate.query.Query;
 import java.util.List;
 import java.util.Locale;
 
-public final class E5StateIterable<T extends E5State, F extends Enum<F> & E5FieldEnum> {
+public final class E5StateIterable<T extends E5State> {
     @Getter
     private final Class<T> entityClass;
     private final SessionFactory sessionFactory;
-    private E5FilterOptions<T, F> filterOptions;
+    private E5FilterOptions<T> filterOptions;
     private String sortField;
     private boolean ascending = true;
     private int limit = -1;
@@ -26,28 +26,28 @@ public final class E5StateIterable<T extends E5State, F extends Enum<F> & E5Fiel
         this.sessionFactory = sessionFactory;
     }
 
-    public E5StateIterable<T, F> filter(E5FilterOptions<T, F> filterOptions) {
+    public E5StateIterable<T> filter(E5FilterOptions<T> filterOptions) {
         this.filterOptions = filterOptions;
         return this;
     }
 
-    public E5StateIterable<T, F> sort(F field, boolean ascending) {
-        this.sortField = field.name().toLowerCase(Locale.ROOT);
+    public <F> E5StateIterable<T> sort(E5SearchField<T,F> field, boolean ascending) {
+        this.sortField = field.getName().toLowerCase(Locale.ROOT);
         this.ascending = ascending;
         return this;
     }
 
-    public E5StateIterable<T, F> limit(int limit) {
+    public E5StateIterable<T> limit(int limit) {
         this.limit = limit;
         return this;
     }
 
-    public E5StateIterable<T, F> skip(int skip) {
+    public E5StateIterable<T> skip(int skip) {
         this.skip = skip;
         return this;
     }
 
-    public E5StateIterable<T, F> batchSize(int batchSize) {
+    public E5StateIterable<T> batchSize(int batchSize) {
         this.batchSize = batchSize;
         return this;
     }
