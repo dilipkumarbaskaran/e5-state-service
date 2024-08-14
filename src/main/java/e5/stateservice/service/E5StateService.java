@@ -62,7 +62,7 @@ public final class E5StateService {
     }
 
     @Transactional
-    public static <T extends E5State> boolean deleteOne(Class<T> entityClass, int id) {
+    public static <T extends E5State> boolean deleteOne(Class<T> entityClass, long id) {
         executeInsideTransaction(session -> {
             T entity = (T) session.get(entityClass, id);
             if (entity != null) {

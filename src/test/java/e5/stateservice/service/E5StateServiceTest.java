@@ -23,19 +23,19 @@ public class E5StateServiceTest {
     @Test
     public void testInsert() {
 
-        E5FilterOptions<Users> E5FilterOptions1 = new E5FilterOptions<Users>()
+        E5StateFilterOptions<Users> E5FilterOptions1 = E5StateFilterOptions.create(Users.class)
                 .eq(Users.NAME, "John Doe")
-                .gt(Users.ID, 1);
+                .gt(Users.ID, 1l);
 
-        E5FilterOptions<Users> E5FilterOptions2 = new E5FilterOptions<Users>()
-                .lt(Users.ID, 100);
+        E5StateFilterOptions<Users> E5FilterOptions2 = E5StateFilterOptions.create(Users.class)
+                .lt(Users.ID, 100l);
 
-        E5FilterGroup<Users> filterGroup = new E5FilterGroup<Users>(E5FilterGroup.LogicalOperator.OR)
+        E5StateFilterGroup<Users> filterGroup = E5StateFilterGroup.create(Users.class, E5StateFilterGroup.LogicalOperator.OR)
                 .addFilter(E5FilterOptions1)
                 .addFilter(E5FilterOptions2);
 
-        E5FilterOptions<Users> combinedE5FilterOptions = new E5FilterOptions<Users>()
-                .lt(Users.ID, 1000)
+        E5StateFilterOptions<Users> combinedE5FilterOptions = E5StateFilterOptions.create(Users.class)
+                .lt(Users.ID, 1000l)
                 .addGroup(filterGroup);
 
         int countPrevious = E5StateService.find(Users.class)
@@ -62,19 +62,19 @@ public class E5StateServiceTest {
     @Test
     public void testUpdate() {
         // Fetch users with filters, sorting, limit, and skip
-        E5FilterOptions<Users> E5FilterOptions1 = new E5FilterOptions<Users>()
+        E5StateFilterOptions<Users> E5FilterOptions1 = E5StateFilterOptions.create(Users.class)
                 .eq(Users.NAME, "John Doe")
-                .gt(Users.ID, 1);
+                .gt(Users.ID, 1l);
 
-        E5FilterOptions<Users> E5FilterOptions2 = new E5FilterOptions<Users>()
-                .lt(Users.ID, 100);
+        E5StateFilterOptions<Users> E5FilterOptions2 = E5StateFilterOptions.create(Users.class)
+                .lt(Users.ID, 100l);
 
-        E5FilterGroup<Users> filterGroup = new E5FilterGroup<Users>(E5FilterGroup.LogicalOperator.OR)
+        E5StateFilterGroup<Users> filterGroup = E5StateFilterGroup.create(Users.class, E5StateFilterGroup.LogicalOperator.OR)
                 .addFilter(E5FilterOptions1)
                 .addFilter(E5FilterOptions2);
 
-        E5FilterOptions<Users> combinedE5FilterOptions = new E5FilterOptions<Users>()
-                .lt(Users.ID, 1000)
+        E5StateFilterOptions<Users> combinedE5FilterOptions = E5StateFilterOptions.create(Users.class)
+                .lt(Users.ID, 1000l)
                 .addGroup(filterGroup);
         // Update a user
         try (var cursor = E5StateService.find(Users.class)
@@ -101,19 +101,19 @@ public class E5StateServiceTest {
     @Test
     public void testDelete() {
         // Fetch users with filters, sorting, limit, and skip
-        E5FilterOptions<Users> E5FilterOptions1 = new E5FilterOptions<Users>()
+        E5StateFilterOptions<Users> E5FilterOptions1 = E5StateFilterOptions.create(Users.class)
                 .eq(Users.NAME, "John Doe")
-                .gt(Users.ID, 1);
+                .gt(Users.ID, 1l);
 
-        E5FilterOptions<Users> E5FilterOptions2 = new E5FilterOptions<Users>()
-                .lt(Users.ID, 100);
+        E5StateFilterOptions<Users> E5FilterOptions2 = E5StateFilterOptions.create(Users.class)
+                .lt(Users.ID, 100l);
 
-        E5FilterGroup<Users> filterGroup = new E5FilterGroup<Users>(E5FilterGroup.LogicalOperator.OR)
+        E5StateFilterGroup<Users> filterGroup = E5StateFilterGroup.create(Users.class, E5StateFilterGroup.LogicalOperator.OR)
                 .addFilter(E5FilterOptions1)
                 .addFilter(E5FilterOptions2);
 
-        E5FilterOptions<Users> combinedE5FilterOptions = new E5FilterOptions<Users>()
-                .lt(Users.ID, 1000)
+        E5StateFilterOptions<Users> combinedE5FilterOptions = E5StateFilterOptions.create(Users.class)
+                .lt(Users.ID, 1000l)
                 .addGroup(filterGroup);
 
         int countBefore = E5StateService.find(Users.class)
