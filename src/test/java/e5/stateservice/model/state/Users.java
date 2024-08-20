@@ -3,12 +3,12 @@ package e5.stateservice.model.state;
 
 import e5.stateservice.model.E5SearchField;
 import e5.stateservice.model.E5State;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import javax.persistence.*;
 
 @Builder
 @Data

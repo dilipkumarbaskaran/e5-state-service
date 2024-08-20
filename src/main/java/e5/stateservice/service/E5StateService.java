@@ -1,10 +1,10 @@
 package e5.stateservice.service;
 
 import e5.stateservice.model.E5State;
+import jakarta.transaction.Transactional;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 
-import javax.transaction.Transactional;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -40,7 +40,7 @@ public final class E5StateService {
         return entities;
     }
 
-    @Transactional
+    //@Transactional
     public static <T extends E5State> T updateOne(T entity) {
         executeInsideTransaction(session -> {
             session.update(entity);

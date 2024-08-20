@@ -17,7 +17,7 @@ public class E5StateServiceTest {
                 .schemaName("schema1")
                 .dbUserName("postgres")
                 .dbPassword("pgadmin").build();
-        E5StateServiceInitializer.init(stateServiceProps);
+        E5StateServiceInitializer.init(stateServiceProps, true);
     }
 
     @Test
