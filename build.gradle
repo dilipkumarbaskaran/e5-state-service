@@ -18,7 +18,7 @@ plugins {
 }
 
 group = 'e5.state'
-version = '0.1'
+version = '0.2'
 
 repositories {
     mavenCentral()
@@ -54,19 +54,21 @@ publishing {
 }
 
 ext {
-    slf4jVersion = '1.7.25'
-    jettyVersion = '9.4.6.v20170531'
-    jerseyVersion = '2.27'
     junitJupiterVersion  = '5.8.1'
+    postgresVersion = '42.2.23'
+    hibernateCoreVersion = '6.6.0.Final'
+    persistenceVersion = '2.2'
+    reflectionsVersion = '0.10.2'
 }
 
 dependencies {
-    implementation 'org.postgresql:postgresql:42.2.23'
-    implementation 'org.hibernate:hibernate-core:5.4.32.Final'
-    implementation 'com.zaxxer:HikariCP:4.0.3'
-    implementation 'javax.persistence:javax.persistence-api:2.2'
-    implementation group: 'org.reflections', name: 'reflections', version: '0.10.2'
-
+    implementation("org.postgresql:postgresql:${postgresVersion}")
+    implementation("org.hibernate:hibernate-core:${hibernateCoreVersion}")
+    implementation("org.hibernate.orm:hibernate-community-dialects:${hibernateCoreVersion}")
+    implementation group:'org.xerial', name:'sqlite-jdbc', version:'3.46.0.1'
+    implementation("javax.persistence:javax.persistence-api:${persistenceVersion}")
+    implementation("org.reflections:reflections:${reflectionsVersion}")
+    implementation 'com.h2database:h2:2.1.214'
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:${junitJupiterVersion}")
     testImplementation("org.junit.jupiter:junit-jupiter-engine:${junitJupiterVersion}")

@@ -7,56 +7,74 @@ import org.hibernate.boot.Metadata;
 import org.hibernate.boot.MetadataSources;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
-import org.hibernate.cfg.Configuration;
-import org.hibernate.tool.hbm2ddl.SchemaUpdate;
 import org.hibernate.tool.schema.TargetType;
+import org.hibernate.tool.schema.spi.ContributableMatcher;
+import org.hibernate.tool.schema.spi.ExceptionHandler;
+import org.hibernate.tool.schema.spi.ExecutionOptions;
+import org.hibernate.tool.schema.spi.SchemaManagementTool;
+import org.hibernate.tool.schema.spi.ScriptTargetOutput;
+import org.hibernate.tool.schema.spi.TargetDescriptor;
 import org.reflections.Reflections;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class E5StateServiceInitializer {
     protected static SessionFactory sessionFactory;
     private static final String GRADLE_SETTINGS_FILE_NAME = "settings.gradle";
     private static final String ROOT_PROJECT_NAME = "rootProject.name";
-    private static final String POSTGRES_DRIVER = "org.postgresql.Driver";
+    private static final String POSTGRES_DRIVER_CLASS = "org.postgresql.Driver";
+    private static final String H2_DRIVER_CLASS = "org.h2.Driver";
     public static final String JDBC_POSTGRES_URL = "jdbc:postgresql://";
+    public static final String JDBC_H2_URL = "jdbc:h2:mem:";
     public static final String POSTGRES_DIALECT = "org.hibernate.dialect.PostgreSQLDialect";
+    public static final String H2_DIALECT = "org.hibernate.dialect.H2Dialect";
 
-    public static void init (E5StateServiceProperties stateServiceProps) {
-        sessionFactory = buildSessionFactory(stateServiceProps);
+    public static void init (E5StateServiceProperties stateServiceProps, boolean isProd) {
+        sessionFactory = buildSessionFactory(stateServiceProps, isProd);
     }
 
-    private static SessionFactory buildSessionFactory(E5StateServiceProperties stateServiceProps) {
-        Configuration configuration = new Configuration();
+    public static void closeConnection() {
+        sessionFactory.close();
+    }
 
+    private static SessionFactory buildSessionFactory(E5StateServiceProperties stateServiceProps, boolean isProd) {
+        Map<String, Object> settings = new HashMap<>();
         // Set properties
-        configuration.setProperty("hibernate.connection.driver_class", POSTGRES_DRIVER);
-        configuration.setProperty("hibernate.connection.url", JDBC_POSTGRES_URL + stateServiceProps.getEndpoint() + "/" + stateServiceProps.getDbName());
-        configuration.setProperty("hibernate.connection.username", stateServiceProps.getDbUserName());
-        configuration.setProperty("hibernate.connection.password", stateServiceProps.getDbPassword());
-        configuration.setProperty("hibernate.default_schema", stateServiceProps.getSchemaName());
-        configuration.setProperty("hibernate.dialect", POSTGRES_DIALECT);
-        configuration.setProperty("hibernate.hbm2ddl.auto", "validate");
-        configuration.setProperty("hibernate.show_sql", "true");
+        if (isProd) {
+            settings.put("hibernate.connection.driver_class", POSTGRES_DRIVER_CLASS);
+            settings.put("hibernate.connection.url", JDBC_POSTGRES_URL + stateServiceProps.getEndpoint() + "/" + stateServiceProps.getDbName());
+            settings.put("hibernate.connection.username", stateServiceProps.getDbUserName());
+            settings.put("hibernate.connection.password", stateServiceProps.getDbPassword());
+            settings.put("hibernate.default_schema", stateServiceProps.getSchemaName());
+            settings.put("hibernate.dialect", POSTGRES_DIALECT);
+
+        } else {
+            settings.put("hibernate.connection.driver_class", H2_DRIVER_CLASS);
+            settings.put("hibernate.connection.url", JDBC_H2_URL + stateServiceProps.getDbName());
+            settings.put("hibernate.default_schema", stateServiceProps.getSchemaName());
+            settings.put("hibernate.dialect", H2_DIALECT);
+        }
+
+        settings.put("jakarta.persistence.schema-generation.database.action", "validate");
+        settings.put("hibernate.show_sql", "true");
 
         var serviceRegistry = new StandardServiceRegistryBuilder()
-                .applySettings(configuration.getProperties()).build();
+                .applySettings(settings).build();
         Reflections reflections = new Reflections("e5."+getAppName().toLowerCase()+".model.state");
         Set<Class<? extends E5State>> modelClasses = reflections.getSubTypesOf(E5State.class);
 
         try {
-            if (canMakeSchemaChanges(serviceRegistry, modelClasses)) {
-                // Add your POJOs to metadata sources programmatically
-                modelClasses.forEach(modelClass -> configuration.addAnnotatedClass(modelClass));
-                var registry = new StandardServiceRegistryBuilder()
-                        .applySettings(configuration.getProperties()).build();
-
-                return configuration.buildSessionFactory(registry);
+            if (canMakeSchemaChanges(settings, serviceRegistry, modelClasses)) {
+                return getMetadata(serviceRegistry, modelClasses).buildSessionFactory();
             } else {
                 throw new RuntimeException("Schema changes found!");
             }
@@ -65,20 +83,63 @@ public class E5StateServiceInitializer {
         }
     }
 
-    private static ChangeResult isChangesPresent(Metadata metadata) throws Exception {
+    private static Metadata getMetadata(StandardServiceRegistry serviceRegistry, Set<Class<? extends E5State>> modelClasses) {
+        var metadataSources = new MetadataSources(serviceRegistry);
+
+        // Add your POJOs to metadata sources programmatically
+        modelClasses.forEach(modelClass -> metadataSources.addAnnotatedClass(modelClass));
+
+        var buildMetadata = metadataSources.buildMetadata();
+        return buildMetadata;
+    }
+
+    private static ExecutionOptions getExecutionOptions(Map<String, Object> settings, List<String> schemaDifferences) {
+        return new ExecutionOptions() {
+            @Override
+            public Map<String, Object> getConfigurationValues() {
+                return settings;
+            }
+
+            @Override
+            public boolean shouldManageNamespaces() {
+                return true;
+            }
+
+            @Override
+            public ExceptionHandler getExceptionHandler() {
+                return (exception) -> {
+                    schemaDifferences.add(exception.getMessage());
+                    System.out.println("Schema difference detected: " + exception.getMessage());
+                    if (exception != null) {
+                        System.out.println("Associated exception: " + exception.getMessage());
+                        exception.printStackTrace();
+                    }
+                };
+            }
+        };
+    }
+
+    private static ChangeResult isChangesPresent(Map<String, Object> settings, Metadata metadata, StandardServiceRegistry serviceRegistry) throws Exception {
         try {
             // Validate the schema
-            new org.hibernate.tool.hbm2ddl.SchemaValidator().validate(metadata);
+            SchemaManagementTool schemaManagementTool = serviceRegistry.getService(SchemaManagementTool.class);
+
+            // Custom implementation to capture schema differences
+            List<String> schemaDifferences = new ArrayList<>();
 
             // Validate the schema
-            new SchemaUpdate()
-                    .setHaltOnError(true)
-                    .setFormat(true)
-                    .setDelimiter(";")
-                    .execute(EnumSet.of(TargetType.DATABASE), metadata);
+            schemaManagementTool.getSchemaValidator(settings).doValidation(
+                    metadata,
+                    getExecutionOptions(settings, schemaDifferences),
+                    ContributableMatcher.ALL
+            );
 
-            //metadata.buildSessionFactory();
-            metadata.getSessionFactoryBuilder().build();
+            if (schemaDifferences.isEmpty()) {
+                System.out.println("No schema differences detected.");
+            } else {
+                System.out.println("Schema differences detected:");
+                return ChangeResult.builder().changesAvailable(true).result(new Exception(schemaDifferences.toString())).build();
+            }
         } catch (Exception e) {
             if (!e.getMessage().contains("missing table")) {
                 return ChangeResult.builder().changesAvailable(true).result(e).build();
@@ -87,24 +148,30 @@ public class E5StateServiceInitializer {
         return ChangeResult.builder().changesAvailable(false).build();
     }
 
-    private static boolean canMakeSchemaChanges(StandardServiceRegistry serviceRegistry, Set<Class<? extends E5State>> modelClasses) throws Exception {
-        var metadataSources = new MetadataSources(serviceRegistry);
-
-
-        // Add your POJOs to metadata sources programmatically
-        modelClasses.forEach(modelClass -> metadataSources.addAnnotatedClass(modelClass));
-
-        var buildMetadata = metadataSources.buildMetadata();
+    private static boolean canMakeSchemaChanges(Map<String, Object> settings, StandardServiceRegistry serviceRegistry, Set<Class<? extends E5State>> modelClasses) throws Exception {
+        var buildMetadata = getMetadata(serviceRegistry, modelClasses);
         ChangeResult changeResult;
-        if ((changeResult = isChangesPresent(buildMetadata)).isChangesAvailable()) {
-            //System.out.println("Changes not done");
+        if ((changeResult = isChangesPresent(settings, buildMetadata, serviceRegistry)).isChangesAvailable()) {
             throw new Exception("Schema changes not done!", ((Exception)changeResult.getResult()));
         }
-        var schemaExport = new org.hibernate.tool.hbm2ddl.SchemaExport();
-        //schemaExport.perform(SchemaExport.Action.BOTH, metadata, new ScriptTargetOutputToFile(new File("/home/dilipkumar.baskaran/IdeaProjects/SQLGenerationPOC/src/main/resources/ddl.sql"), "US-ASCII"));
-        schemaExport.setDelimiter(";");
-        //schemaExport.setOutputFile("src/main/resources/ddl.sql");
-        schemaExport.createOnly(EnumSet.of(TargetType.DATABASE,TargetType.STDOUT), buildMetadata);
+        List<String> schemaDifferences = new ArrayList<>();
+        SchemaManagementTool schemaManagementTool = serviceRegistry.getService(SchemaManagementTool.class);
+        schemaManagementTool.getSchemaMigrator(settings).doMigration(
+                buildMetadata,
+                getExecutionOptions(settings, schemaDifferences),
+                ContributableMatcher.ALL,
+                new TargetDescriptor() {
+                    @Override
+                    public EnumSet<TargetType> getTargetTypes() {
+                        return EnumSet.of(TargetType.DATABASE, TargetType.STDOUT);
+                    }
+
+                    @Override
+                    public ScriptTargetOutput getScriptTargetOutput() {
+                        return null;
+                    }
+                }
+        );
         return true;
     }
 
