@@ -18,7 +18,7 @@ plugins {
 }
 
 group = 'e5.state'
-version = '0.1'
+version = '0.2'
 
 repositories {
     mavenCentral()
@@ -68,7 +68,7 @@ dependencies {
     implementation group:'org.xerial', name:'sqlite-jdbc', version:'3.46.0.1'
     implementation("javax.persistence:javax.persistence-api:${persistenceVersion}")
     implementation("org.reflections:reflections:${reflectionsVersion}")
-
+    implementation 'com.h2database:h2:2.1.214'
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:${junitJupiterVersion}")
     testImplementation("org.junit.jupiter:junit-jupiter-engine:${junitJupiterVersion}")

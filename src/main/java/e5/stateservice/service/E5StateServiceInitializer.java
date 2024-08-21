@@ -32,14 +32,18 @@ public class E5StateServiceInitializer {
     private static final String GRADLE_SETTINGS_FILE_NAME = "settings.gradle";
     private static final String ROOT_PROJECT_NAME = "rootProject.name";
     private static final String POSTGRES_DRIVER_CLASS = "org.postgresql.Driver";
-    private static final String SQLITE_DRIVER_CLASS = "org.sqlite.JDBC";
+    private static final String H2_DRIVER_CLASS = "org.h2.Driver";
     public static final String JDBC_POSTGRES_URL = "jdbc:postgresql://";
-    public static final String JDBC_SQLITE_URL = "jdbc:sqlite:";
+    public static final String JDBC_H2_URL = "jdbc:h2:mem:";
     public static final String POSTGRES_DIALECT = "org.hibernate.dialect.PostgreSQLDialect";
-    public static final String SQLITE_DIALECT = "org.hibernate.dialect.SQLiteDialect";
+    public static final String H2_DIALECT = "org.hibernate.dialect.H2Dialect";
 
     public static void init (E5StateServiceProperties stateServiceProps, boolean isProd) {
         sessionFactory = buildSessionFactory(stateServiceProps, isProd);
+    }
+
+    public static void closeConnection() {
+        sessionFactory.close();
     }
 
     private static SessionFactory buildSessionFactory(E5StateServiceProperties stateServiceProps, boolean isProd) {
@@ -54,10 +58,10 @@ public class E5StateServiceInitializer {
             settings.put("hibernate.dialect", POSTGRES_DIALECT);
 
         } else {
-            settings.put("hibernate.connection.driver_class", SQLITE_DRIVER_CLASS);
-            settings.put("hibernate.connection.url", JDBC_SQLITE_URL + stateServiceProps.getDbName() + ".db");
+            settings.put("hibernate.connection.driver_class", H2_DRIVER_CLASS);
+            settings.put("hibernate.connection.url", JDBC_H2_URL + stateServiceProps.getDbName());
             settings.put("hibernate.default_schema", stateServiceProps.getSchemaName());
-            settings.put("hibernate.dialect", SQLITE_DIALECT);
+            settings.put("hibernate.dialect", H2_DIALECT);
         }
 
         settings.put("jakarta.persistence.schema-generation.database.action", "validate");
