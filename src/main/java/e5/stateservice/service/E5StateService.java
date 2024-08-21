@@ -18,11 +18,9 @@ public final class E5StateService {
 
     @Transactional
     public static <T extends E5State> T insertOne(T entity) {
-        try (var session = E5StateServiceInitializer.sessionFactory.openSession()) {
-            session.beginTransaction();
+        executeInsideTransaction(session -> {
             session.save(entity);
-            session.getTransaction().commit();
-        }
+        });
         return entity;
     }
 
