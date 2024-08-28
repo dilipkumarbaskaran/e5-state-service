@@ -6,18 +6,16 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-
-public class E5StateServiceTest {
+public class E5H2StateServiceTest {
 
     @BeforeEach
     public void setupStateService() {
+
         E5StateServiceProperties stateServiceProps = E5StateServiceProperties.builder()
-                .endpoint("localhost:5432")
                 .dbName("yourdb")
                 .schemaName("schema1")
-                .dbUserName("postgres")
-                .dbPassword("pgadmin").build();
-        E5StateServiceInitializer.init(stateServiceProps, true);
+                .build();
+        E5StateServiceInitializer.init(stateServiceProps, false);
     }
 
     @Test

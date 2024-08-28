@@ -1,6 +1,6 @@
 package e5.stateservice.service;
 
-import e5.stateservice.model.E5FieldEnum;
+import e5.stateservice.model.E5SearchField;
 import e5.stateservice.model.E5State;
 import lombok.Getter;
 import org.hibernate.Session;
@@ -8,12 +8,13 @@ import org.hibernate.SessionFactory;
 import org.hibernate.query.Query;
 
 import java.util.List;
+import java.util.Locale;
 
-public final class E5StateIterable<T extends E5State, F extends Enum<F> & E5FieldEnum> {
+public final class E5StateIterable<T extends E5State> {
     @Getter
     private final Class<T> entityClass;
     private final SessionFactory sessionFactory;
-    private E5FilterOptions<T, F> filterOptions;
+    private E5StateFilterOptions<T> filterOptions;
     private String sortField;
     private boolean ascending = true;
     private int limit = -1;
@@ -25,37 +26,72 @@ public final class E5StateIterable<T extends E5State, F extends Enum<F> & E5Fiel
         this.sessionFactory = sessionFactory;
     }
 
-    public E5StateIterable<T, F> filter(E5FilterOptions<T, F> filterOptions) {
+    /**
+     * Filter records with filteroptions
+     * @param filterOptions records to be filtered with
+     * @return E5StateIterable Object to add further operations or fetch record
+     */
+    public E5StateIterable<T> filter(E5StateFilterOptions<T> filterOptions) {
         this.filterOptions = filterOptions;
         return this;
     }
 
-    public E5StateIterable<T, F> sort(F field, boolean ascending) {
-        this.sortField = field.getFieldName();
+    /**
+     * Sort records
+     * @param field to which sorting has to be done
+     * @param ascending boolean value to say its ascending/descending
+     * @return E5StateIterable Object to add further operations or fetch record
+     * @param <F>
+     */
+    public <F> E5StateIterable<T> sort(E5SearchField<T,F> field, boolean ascending) {
+        this.sortField = field.getName().toLowerCase(Locale.ROOT);
         this.ascending = ascending;
         return this;
     }
 
-    public E5StateIterable<T, F> limit(int limit) {
+    /**
+     * Limit Records to be fetched
+     * @param limit - no of records to be fetched
+     * @return E5StateIterable Object to add further operations or fetch record
+     */
+    public E5StateIterable<T> limit(int limit) {
         this.limit = limit;
         return this;
     }
 
-    public E5StateIterable<T, F> skip(int skip) {
+    /**
+     * Skipping records at the Start
+     * @param skip no of records to be skipped at the start
+     * @return E5StateIterable Object to add further operations or fetch record
+     */
+    public E5StateIterable<T> skip(int skip) {
         this.skip = skip;
         return this;
     }
 
-    public E5StateIterable<T, F> batchSize(int batchSize) {
+    /**
+     * Limiting no of records to be fetched at the given instance
+     * @param batchSize - no of records to be fetched at this instance
+     * @return E5StateIterable Object to add further operations or fetch record
+     */
+    public E5StateIterable<T> batchSize(int batchSize) {
         this.batchSize = batchSize;
         return this;
     }
 
+    /**
+     * create query and fetch records with the operations mentioned
+     * @return E5StateCursor Object to iterate over records
+     */
     public E5StateCursor<T> iterator() {
         Session session = sessionFactory.openSession();
         return new E5StateCursor<>(entityClass, session, this.createQuery(session), batchSize);
     }
 
+    /**
+     * Get all the records with operations performed
+     * @return list of output records
+     */
     public List<T> list() {
         Session session = sessionFactory.openSession();
         E5StateCursor<T> e5StateCursor = new E5StateCursor<>(entityClass, session, this.createQuery(sessionFactory.openSession()), batchSize);

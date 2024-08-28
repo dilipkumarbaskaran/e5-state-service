@@ -1,11 +1,10 @@
 package e5.stateservice.service;
 
-import e5.stateservice.model.E5FieldEnum;
 import e5.stateservice.model.E5State;
+import jakarta.transaction.Transactional;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 
-import javax.transaction.Transactional;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -13,8 +12,8 @@ public final class E5StateService {
 
     public static final int BATCH_SIZE_SESSION_FLUSH = 20;
 
-    public static <T extends E5State, F extends Enum<F> & E5FieldEnum> E5StateIterable<T, F> find(Class<T> entityClass, Class<F> FieldENum) {
-        return new E5StateIterable<T, F>(entityClass, E5StateServiceInitializer.sessionFactory);
+    public static <T extends E5State> E5StateIterable<T> find(Class<T> entityClass) {
+        return new E5StateIterable<T>(entityClass, E5StateServiceInitializer.sessionFactory);
     }
 
     @Transactional
@@ -28,7 +27,7 @@ public final class E5StateService {
     }
 
     @Transactional
-    public static <T> List<T> insertMany(List<T> entities) {
+    public static <T extends E5State> List<T> insertMany(List<T> entities) {
         executeInsideTransaction(session -> {
             for (int i = 0; i < entities.size(); i++) {
                 session.save(entities.get(i));
@@ -41,7 +40,7 @@ public final class E5StateService {
         return entities;
     }
 
-    @Transactional
+    //@Transactional
     public static <T extends E5State> T updateOne(T entity) {
         executeInsideTransaction(session -> {
             session.update(entity);
@@ -49,7 +48,7 @@ public final class E5StateService {
         return entity;
     }
 
-    public static <T> List<T> updateMany(List<T> entities) {
+    public static <T extends E5State> List<T> updateMany(List<T> entities) {
         executeInsideTransaction(session -> {
             for (int i = 0; i < entities.size(); i++) {
                 session.update(entities.get(i));
@@ -63,7 +62,7 @@ public final class E5StateService {
     }
 
     @Transactional
-    public static <T extends E5State> boolean deleteOne(Class<T> entityClass, int id) {
+    public static <T extends E5State> boolean deleteOne(Class<T> entityClass, long id) {
         executeInsideTransaction(session -> {
             T entity = (T) session.get(entityClass, id);
             if (entity != null) {
