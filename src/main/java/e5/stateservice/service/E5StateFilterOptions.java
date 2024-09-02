@@ -35,7 +35,7 @@ public final class E5StateFilterOptions<T extends E5State> {
      * @param <F>
      */
     public <F> E5StateFilterOptions<T> eq(E5SearchField<T, F> field, F value) {
-        criteria.add(new E5StateFilterCriterion(field.getName().toLowerCase(Locale.ROOT), value, " = "));
+        criteria.add(new E5StateFilterCriterion(field.getName(), value, " = "));
         return this;
     }
 
@@ -47,7 +47,7 @@ public final class E5StateFilterOptions<T extends E5State> {
      * @param <F>
      */
     public<F> E5StateFilterOptions<T> lt(E5SearchField<T, F> field, F value) {
-        criteria.add(new E5StateFilterCriterion(field.getName().toLowerCase(Locale.ROOT), value, " < "));
+        criteria.add(new E5StateFilterCriterion(field.getName(), value, " < "));
         return this;
     }
 
@@ -59,7 +59,7 @@ public final class E5StateFilterOptions<T extends E5State> {
      * @param <F>
      */
     public <F> E5StateFilterOptions<T> gt(E5SearchField<T, F> field, F value) {
-        criteria.add(new E5StateFilterCriterion(field.getName().toLowerCase(Locale.ROOT), value, " > "));
+        criteria.add(new E5StateFilterCriterion(field.getName(), value, " > "));
         return this;
     }
 
