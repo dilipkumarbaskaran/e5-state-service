@@ -16,17 +16,13 @@ public final class E5StateService {
         return new E5StateIterable<T>(entityClass, E5StateServiceInitializer.sessionFactory);
     }
 
-    @Transactional
     public static <T extends E5State> T insertOne(T entity) {
-        try (var session = E5StateServiceInitializer.sessionFactory.openSession()) {
-            session.beginTransaction();
+        executeInsideTransaction(session -> {
             session.save(entity);
-            session.getTransaction().commit();
-        }
+        });
         return entity;
     }
 
-    @Transactional
     public static <T extends E5State> List<T> insertMany(List<T> entities) {
         executeInsideTransaction(session -> {
             for (int i = 0; i < entities.size(); i++) {
@@ -40,7 +36,6 @@ public final class E5StateService {
         return entities;
     }
 
-    //@Transactional
     public static <T extends E5State> T updateOne(T entity) {
         executeInsideTransaction(session -> {
             session.update(entity);
@@ -83,7 +78,15 @@ public final class E5StateService {
             action.accept(session);
             transaction.commit();
         } catch (RuntimeException e) {
-            if (transaction != null) transaction.rollback();
+            if (transaction != null) {
+                if (transaction != null && transaction.isActive()) {
+                    try {
+                        transaction.rollback();
+                    } catch(Exception ex) {
+                        //don't do anything
+                    }
+                }
+            }
             throw e;
         }
     }
