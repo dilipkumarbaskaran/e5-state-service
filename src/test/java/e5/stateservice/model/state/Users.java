@@ -19,8 +19,7 @@ import lombok.NoArgsConstructor;
         @Index(name = "idx_users_email", columnList = "email"),
         @Index(name = "idx_users_name", columnList = "name")
 })
-public class Users implements E5State
-{
+public class Users extends E5State {
 
     @Id
     @Column(nullable = false, name = "id")
