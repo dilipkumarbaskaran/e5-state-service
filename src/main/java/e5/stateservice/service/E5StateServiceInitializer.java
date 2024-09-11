@@ -69,7 +69,7 @@ public class E5StateServiceInitializer {
 
         var serviceRegistry = new StandardServiceRegistryBuilder()
                 .applySettings(settings).build();
-        Reflections reflections = new Reflections("e5."+getAppName().toLowerCase()+".model.state");
+        Reflections reflections = new Reflections("e5");
         Set<Class<? extends E5State>> modelClasses = reflections.getSubTypesOf(E5State.class);
 
         try {
