@@ -2,12 +2,14 @@ package e5.stateservice.service;
 
 import e5.stateservice.model.E5SearchField;
 import e5.stateservice.model.E5State;
+import lombok.Data;
 import org.hibernate.query.Query;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@Data
 public final class E5StateFilterOptions<T extends E5State> {
     private final List<E5StateFilterCriterion> criterias = new ArrayList<>();
     private final List<E5StateFilterGroup<T>> groups = new ArrayList<>();
@@ -134,6 +136,7 @@ public final class E5StateFilterOptions<T extends E5State> {
         }
     }
 
+    @Data
     private static class E5StateFilterCriterion {
         private final String field;
         private final Object value;

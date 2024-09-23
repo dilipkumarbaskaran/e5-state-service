@@ -7,6 +7,7 @@ import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.query.Query;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -15,8 +16,8 @@ public final class E5StateIterable<T extends E5State> {
     private final Class<T> entityClass;
     private final SessionFactory sessionFactory;
     private E5StateFilterOptions<T> filterOptions;
-    private String sortField;
-    private boolean ascending = true;
+    private List<String> sortFieldList = new ArrayList<>();
+    private List<Boolean> ascendingList = new ArrayList<>();
     private int limit = -1;
     private int skip = 0;
     private int batchSize = 50; // not used in initial release
@@ -44,8 +45,8 @@ public final class E5StateIterable<T extends E5State> {
      * @param <F>
      */
     public <F> E5StateIterable<T> sort(E5SearchField<T,F> field, boolean ascending) {
-        this.sortField = field.getName().toLowerCase(Locale.ROOT);
-        this.ascending = ascending;
+        this.sortFieldList.add(field.getName());
+        this.ascendingList.add(ascending);
         return this;
     }
 
@@ -108,8 +109,12 @@ public final class E5StateIterable<T extends E5State> {
             hql.append(" WHERE ").append(filterOptions.toHql());
         }
 
-        if (sortField != null) {
-            hql.append(" ORDER BY ").append(sortField).append(ascending ? " ASC" : " DESC");
+        if (sortFieldList != null  && !sortFieldList.isEmpty()){
+            hql.append(" ORDER BY ");
+            for (int i=0;i< sortFieldList.size();i++) {
+                hql.append(sortFieldList.get(i)).append(ascendingList.get(i).equals(Boolean.TRUE) ? " ASC, " : " DESC, ");
+            }
+            hql.delete(hql.length()-2, hql.length());
         }
 
         Query<T> query = session.createQuery(hql.toString(), entityClass);

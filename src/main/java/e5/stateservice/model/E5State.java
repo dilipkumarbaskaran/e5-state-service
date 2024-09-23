@@ -22,7 +22,7 @@ public abstract class E5State<T extends E5State<T>> implements  Cloneable {
 
 
         public String getName() {
-            return "created_date_time";
+            return "createdDateTime";
         }
 
     };
@@ -42,7 +42,7 @@ public abstract class E5State<T extends E5State<T>> implements  Cloneable {
 
 
         public String getName() {
-            return "updated_date_time";
+            return "updatedDateTime";
         }
 
     };
