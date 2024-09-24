@@ -22,7 +22,7 @@ import lombok.NoArgsConstructor;
 public class Users extends E5State {
 
     @Id
-    @Column(nullable = false, name = "id")
+    @Column(nullable = false, updatable = false, name = "id")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     public Long id;
     @Transient

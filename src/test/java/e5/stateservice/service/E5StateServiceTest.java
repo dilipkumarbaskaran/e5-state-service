@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.UUID;
 
 
 public class E5StateServiceTest {
@@ -61,6 +62,41 @@ public class E5StateServiceTest {
 
         Assertions.assertEquals(countPrevious+1, countAfter);
 
+    }
+
+    @Test
+    public void testSearch() {
+        E5StateFilterOptions<Users> filterOptions = E5StateFilterOptions.create(Users.class);
+
+        for (int i=0;i<100;i++) {
+            filterOptions.lt(Users.ID, 5l+i);
+        }
+
+        E5StateFilterGroup<Users> filterGroup1 = E5StateFilterGroup.create(Users.class, E5StateFilterGroup.LogicalOperator.OR)
+                .addFilter(filterOptions)
+                .addFilter(filterOptions);
+
+        E5StateFilterOptions<Users> filterOptions1 = E5StateFilterOptions.create(Users.class)
+                .addGroup(filterGroup1)
+                .addGroup(filterGroup1);
+
+        int countBefore = E5StateService.find(Users.class)
+                .filter(filterOptions1)
+                .list().size();
+
+        if (countBefore < 5) {
+            // Insert a new user
+            Users newUser = new Users();
+            newUser.setName("John Doe");
+            String random = UUID.randomUUID().toString().replace("-","");
+            newUser.setEmail("john.doe+"+random+"@example.com");
+            newUser = E5StateService.insertOne(newUser);
+
+            int countAfter = E5StateService.find(Users.class)
+                    .filter(filterOptions1)
+                    .list().size();
+            Assertions.assertEquals(countBefore+1, countAfter);
+        }
     }
 
     @Test
