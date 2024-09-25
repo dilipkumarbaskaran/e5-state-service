@@ -147,6 +147,34 @@ public class E5H2StateServiceTest {
     }
 
     @Test
+    public void testSearch() {
+        E5StateFilterOptions<Users> filterOptions = E5StateFilterOptions.create(Users.class);
+
+        for (int i=0;i<100;i++) {
+            filterOptions.lt(Users.ID, 5l+i);
+        }
+
+        E5StateFilterGroup<Users> filterGroup1 = E5StateFilterGroup.create(Users.class, E5StateFilterGroup.LogicalOperator.OR)
+                .addFilter(filterOptions)
+                .addFilter(filterOptions);
+
+        E5StateFilterOptions<Users> filterOptions1 = E5StateFilterOptions.create(Users.class)
+                .addGroup(filterGroup1)
+                .addGroup(filterGroup1);
+
+        // Insert a new user
+        Users newUser = new Users();
+        newUser.setName("John Doe");
+        newUser.setEmail("john.doe1@example.com");
+        newUser = E5StateService.insertOne(newUser);
+
+        int countAfter = E5StateService.find(Users.class)
+                .filter(filterOptions1)
+                .list().size();
+        Assertions.assertEquals(1, countAfter);
+    }
+
+    @Test
     public void testUpdateManyWithException() {
 
         // Update Multiple user
