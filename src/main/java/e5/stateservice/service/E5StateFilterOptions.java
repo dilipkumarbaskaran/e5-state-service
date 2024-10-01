@@ -6,10 +6,10 @@ import org.hibernate.query.Query;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+import java.util.UUID;
 
 public final class E5StateFilterOptions<T extends E5State> {
-    private final List<E5StateFilterCriterion> criteria = new ArrayList<>();
+    private final List<E5StateFilterCriterion> criterias = new ArrayList<>();
     private final List<E5StateFilterGroup<T>> groups = new ArrayList<>();
     private Class<T> entityClass;
 
@@ -35,7 +35,7 @@ public final class E5StateFilterOptions<T extends E5State> {
      * @param <F>
      */
     public <F> E5StateFilterOptions<T> eq(E5SearchField<T, F> field, F value) {
-        criteria.add(new E5StateFilterCriterion(field.getName(), value, " = "));
+        criterias.add(new E5StateFilterCriterion(field.getName(), value, " = "));
         return this;
     }
 
@@ -47,7 +47,7 @@ public final class E5StateFilterOptions<T extends E5State> {
      * @param <F>
      */
     public<F> E5StateFilterOptions<T> lt(E5SearchField<T, F> field, F value) {
-        criteria.add(new E5StateFilterCriterion(field.getName(), value, " < "));
+        criterias.add(new E5StateFilterCriterion(field.getName(), value, " < "));
         return this;
     }
 
@@ -59,8 +59,20 @@ public final class E5StateFilterOptions<T extends E5State> {
      * @param <F>
      */
     public <F> E5StateFilterOptions<T> gt(E5SearchField<T, F> field, F value) {
-        criteria.add(new E5StateFilterCriterion(field.getName(), value, " > "));
+        criterias.add(new E5StateFilterCriterion(field.getName(), value, " > "));
         return this;
+    }
+
+    public E5StateFilterOptions<T> clone() {
+        E5StateFilterOptions<T> copyObject = new E5StateFilterOptions<>(entityClass);
+        for (E5StateFilterCriterion criteria : criterias) {
+            copyObject.criterias.add(criteria.clone());
+        }
+
+        for (E5StateFilterGroup<T> filterGroup : groups) {
+            copyObject.groups.add(filterGroup.clone());
+        }
+        return copyObject;
     }
 
     /**
@@ -69,21 +81,22 @@ public final class E5StateFilterOptions<T extends E5State> {
      * @return E5StateFilterOptions instance for the entityClass Object with filtergroup added
      */
     public E5StateFilterOptions<T> addGroup(E5StateFilterGroup<T> group) {
-        groups.add(group);
+        groups.add(group.clone());
         return this;
     }
 
     public String toHql() {
         StringBuilder hql = new StringBuilder();
         hql.append(" (");
-        if (!criteria.isEmpty()) {
+        if (!criterias.isEmpty()) {
             //hql.append(" WHERE ");
-            for (E5StateFilterCriterion criterion : criteria) {
-                String modifiedFieldName = criterion.getField() + (int)(Math.random()*100);
+            for (E5StateFilterCriterion criterion : criterias) {
+                String randomUUID = UUID.randomUUID().toString().replace("-","");
+                String modifiedFieldName = criterion.getField() + randomUUID;
                 criterion.setFieldParamName(modifiedFieldName);
                 hql.append(criterion.getField()).append(criterion.getOperator()).append(":").append(criterion.getFieldParamName()).append(" AND ");
             }
-            if (groups.size() == 0) {
+            if (groups.isEmpty()) {
                 hql.delete(hql.length() - 5, hql.length());
             }// Remove last " AND "
         }
@@ -100,14 +113,17 @@ public final class E5StateFilterOptions<T extends E5State> {
                 hql.append(filter.toHql()).append(" ").append(group.getOperator()).append(" ");
             }
             hql.delete(hql.length() - (" " + group.getOperator() + " ").length(), hql.length()); // Remove last " AND "
-            hql.append(") ");
+            hql.append(")").append(" AND ");
+        }
+        if (!groups.isEmpty()) {
+            hql.delete(hql.length() - 5, hql.length());
         }
         hql.append(") ");
         return hql.toString().trim();
     }
 
     public void setParameters(Query<T> query) {
-        for (E5StateFilterCriterion criterion : criteria) {
+        for (E5StateFilterCriterion criterion : criterias) {
             query.setParameter(criterion.getFieldParamName(), criterion.getValue());
         }
 
@@ -144,6 +160,10 @@ public final class E5StateFilterOptions<T extends E5State> {
 
         public void setFieldParamName(String modifiedFieldName) {
             this.fieldParamName = modifiedFieldName;
+        }
+
+        public E5StateFilterCriterion clone() {
+            return new E5StateFilterCriterion(field, value, operator);
         }
 
         public String getFieldParamName() {

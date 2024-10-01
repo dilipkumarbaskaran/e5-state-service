@@ -39,8 +39,16 @@ public final class E5StateFilterGroup<T extends E5State> {
      * @return E5StateFilterGroup instance after adding the filter to the group
      */
     public E5StateFilterGroup<T> addFilter(E5StateFilterOptions<T> filter) {
-        filters.add(filter);
+        filters.add(filter.clone());
         return this;
+    }
+
+    public E5StateFilterGroup<T> clone(){
+        E5StateFilterGroup<T> copyObject = new E5StateFilterGroup(entityCLass, operator);
+        for (E5StateFilterOptions<T> filter : filters) {
+            copyObject.filters.add(filter.clone());
+        }
+        return copyObject;
     }
 
     public LogicalOperator getOperator() {
