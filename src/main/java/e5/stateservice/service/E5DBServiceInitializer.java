@@ -1,7 +1,7 @@
 package e5.stateservice.service;
 
 import e5.stateservice.model.E5State;
-import e5.stateservice.model.E5StateServiceProperties;
+import e5.stateservice.model.E5DBServiceProperties;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.Metadata;
 import org.hibernate.boot.MetadataSources;
@@ -27,8 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class E5StateServiceInitializer {
-    protected static SessionFactory sessionFactory;
+public class E5DBServiceInitializer {
     private static final String GRADLE_SETTINGS_FILE_NAME = "settings.gradle";
     private static final String ROOT_PROJECT_NAME = "rootProject.name";
     private static final String POSTGRES_DRIVER_CLASS = "org.postgresql.Driver";
@@ -38,42 +37,41 @@ public class E5StateServiceInitializer {
     public static final String POSTGRES_DIALECT = "org.hibernate.dialect.PostgreSQLDialect";
     public static final String H2_DIALECT = "org.hibernate.dialect.H2Dialect";
 
-    public static void init (E5StateServiceProperties stateServiceProps, boolean isProd) {
-        sessionFactory = buildSessionFactory(stateServiceProps, isProd);
-    }
-
-    public static void closeConnection() {
-        sessionFactory.close();
-    }
-
-    private static SessionFactory buildSessionFactory(E5StateServiceProperties stateServiceProps, boolean isProd) {
+    public  static SessionFactory buildSessionFactory(E5DBServiceProperties dbServiceProps,
+                                                      boolean allowSchemaChanges,
+                                                      boolean isProd,
+                                                      String packagePrefixToConsider) {
         Map<String, Object> settings = new HashMap<>();
         // Set properties
         if (isProd) {
             settings.put("hibernate.connection.driver_class", POSTGRES_DRIVER_CLASS);
-            settings.put("hibernate.connection.url", JDBC_POSTGRES_URL + stateServiceProps.getEndpoint() + "/" + stateServiceProps.getDbName());
-            settings.put("hibernate.connection.username", stateServiceProps.getDbUserName());
-            settings.put("hibernate.connection.password", stateServiceProps.getDbPassword());
-            settings.put("hibernate.default_schema", stateServiceProps.getSchemaName());
+            settings.put("hibernate.connection.url", JDBC_POSTGRES_URL + dbServiceProps.getEndpoint() + "/" + dbServiceProps.getDbName());
+            settings.put("hibernate.connection.username", dbServiceProps.getDbUserName());
+            settings.put("hibernate.connection.password", dbServiceProps.getDbPassword());
+            settings.put("hibernate.default_schema", dbServiceProps.getSchemaName());
             settings.put("hibernate.dialect", POSTGRES_DIALECT);
 
         } else {
             settings.put("hibernate.connection.driver_class", H2_DRIVER_CLASS);
-            settings.put("hibernate.connection.url", JDBC_H2_URL + stateServiceProps.getDbName());
-            settings.put("hibernate.default_schema", stateServiceProps.getSchemaName());
+            settings.put("hibernate.connection.url", JDBC_H2_URL + dbServiceProps.getDbName());
+            settings.put("hibernate.default_schema", dbServiceProps.getSchemaName());
             settings.put("hibernate.dialect", H2_DIALECT);
         }
 
-        settings.put("jakarta.persistence.schema-generation.database.action", "validate");
+        if (allowSchemaChanges) {
+            settings.put("jakarta.persistence.schema-generation.database.action", "update");
+        } else {
+            settings.put("jakarta.persistence.schema-generation.database.action", "validate");
+        }
         settings.put("hibernate.show_sql", "true");
 
         var serviceRegistry = new StandardServiceRegistryBuilder()
                 .applySettings(settings).build();
-        Reflections reflections = new Reflections("e5");
+        Reflections reflections = new Reflections(packagePrefixToConsider);
         Set<Class<? extends E5State>> modelClasses = reflections.getSubTypesOf(E5State.class);
 
         try {
-            if (canMakeSchemaChanges(settings, serviceRegistry, modelClasses)) {
+            if (allowSchemaChanges || canMakeSchemaChanges(settings, serviceRegistry, modelClasses)) {
                 return getMetadata(serviceRegistry, modelClasses).buildSessionFactory();
             } else {
                 throw new RuntimeException("Schema changes found!");
