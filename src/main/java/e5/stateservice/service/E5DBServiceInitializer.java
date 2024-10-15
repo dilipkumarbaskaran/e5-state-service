@@ -53,9 +53,8 @@ public class E5DBServiceInitializer {
 
         } else {
             settings.put("hibernate.connection.driver_class", H2_DRIVER_CLASS);
-            settings.put("hibernate.connection.url", JDBC_H2_URL + dbServiceProps.getDbName());
+            settings.put("hibernate.connection.url",JDBC_H2_URL + dbServiceProps.getDbName() + ";INIT=CREATE SCHEMA IF NOT EXISTS " + dbServiceProps.getSchemaName() + ";");
             settings.put("hibernate.default_schema", dbServiceProps.getSchemaName());
-            settings.put("hibernate.dialect", H2_DIALECT);
         }
 
         if (allowSchemaChanges) {
