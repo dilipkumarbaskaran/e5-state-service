@@ -3,6 +3,7 @@ package e5.stateservice.service;
 import e5.stateservice.model.E5State;
 import jakarta.transaction.Transactional;
 import org.hibernate.Session;
+import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
 
 import java.util.List;
@@ -12,18 +13,18 @@ public final class E5StateService {
 
     public static final int BATCH_SIZE_SESSION_FLUSH = 20;
 
-    public static <T extends E5State> E5StateIterable<T> find(Class<T> entityClass) {
-        return new E5StateIterable<T>(entityClass, E5StateServiceInitializer.sessionFactory);
+    public static <T extends E5State> E5StateIterable<T> find(SessionFactory sessionFactory, Class<T> entityClass) {
+        return new E5StateIterable<T>(entityClass, sessionFactory);
     }
 
-    public static <T extends E5State> T insertOne(T entity) {
+    public static <T extends E5State> T insertOne(SessionFactory sessionFactory, T entity) {
         executeInsideTransaction(session -> {
             session.save(entity);
-        });
+        }, sessionFactory);
         return entity;
     }
 
-    public static <T extends E5State> List<T> insertMany(List<T> entities) {
+    public static <T extends E5State> List<T> insertMany(SessionFactory sessionFactory, List<T> entities) {
         executeInsideTransaction(session -> {
             for (int i = 0; i < entities.size(); i++) {
                 session.save(entities.get(i));
@@ -32,18 +33,18 @@ public final class E5StateService {
                     session.clear();
                 }
             }
-        });
+        }, sessionFactory);
         return entities;
     }
 
-    public static <T extends E5State> T updateOne(T entity) {
+    public static <T extends E5State> T updateOne(SessionFactory sessionFactory, T entity) {
         executeInsideTransaction(session -> {
             session.update(entity);
-        });
+        }, sessionFactory);
         return entity;
     }
 
-    public static <T extends E5State> List<T> updateMany(List<T> entities) {
+    public static <T extends E5State> List<T> updateMany(SessionFactory sessionFactory, List<T> entities) {
         executeInsideTransaction(session -> {
             for (int i = 0; i < entities.size(); i++) {
                 session.update(entities.get(i));
@@ -52,18 +53,18 @@ public final class E5StateService {
                     session.clear();
                 }
             }
-        });
+        }, sessionFactory);
         return entities;
     }
 
     @Transactional
-    public static <T extends E5State> boolean deleteOne(Class<T> entityClass, long id) {
+    public static <T extends E5State> boolean deleteOne(SessionFactory sessionFactory, Class<T> entityClass, long id) {
         executeInsideTransaction(session -> {
             T entity = (T) session.get(entityClass, id);
             if (entity != null) {
                 session.delete(entity);
             }
-        });
+        }, sessionFactory);
         return true;
     }
 
@@ -71,9 +72,9 @@ public final class E5StateService {
 
 
 
-    private static void executeInsideTransaction(Consumer<Session> action) {
+    private static void executeInsideTransaction(Consumer<Session> action, SessionFactory sessionFactory) {
         Transaction transaction = null;
-        try (Session session = E5StateServiceInitializer.sessionFactory.openSession()) {
+        try (Session session = sessionFactory.openSession()) {
             transaction = session.beginTransaction();
             action.accept(session);
             transaction.commit();

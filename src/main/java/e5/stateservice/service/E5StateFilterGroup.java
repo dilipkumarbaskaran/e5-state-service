@@ -1,11 +1,12 @@
 package e5.stateservice.service;
 
 import e5.stateservice.model.E5State;
-import lombok.extern.java.Log;
+import lombok.Data;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Data
 public final class E5StateFilterGroup<T extends E5State> {
     public enum LogicalOperator {
         AND, OR

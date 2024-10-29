@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class E5StateServiceProperties {
+public class E5DBServiceProperties {
     String endpoint;
     String dbName;
     String schemaName;

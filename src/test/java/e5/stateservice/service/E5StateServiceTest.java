@@ -1,8 +1,8 @@
 package e5.stateservice.service;
 
-import e5.stateservice.model.E5StateServiceProperties;
+import e5.stateservice.model.E5DBServiceProperties;
 import e5.stateservice.model.state.Users;
-import org.hibernate.JDBCException;
+import org.hibernate.SessionFactory;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,15 +14,17 @@ import java.util.UUID;
 
 public class E5StateServiceTest {
 
+    private SessionFactory sessionFactory;
+
     @BeforeEach
     public void setupStateService() {
-        E5StateServiceProperties stateServiceProps = E5StateServiceProperties.builder()
+        E5DBServiceProperties stateServiceProps = E5DBServiceProperties.builder()
                 .endpoint("localhost:5432")
                 .dbName("yourdb")
                 .schemaName("schema1")
                 .dbUserName("postgres")
                 .dbPassword("pgadmin").build();
-        E5StateServiceInitializer.init(stateServiceProps, true);
+        sessionFactory = E5DBServiceInitializer.buildSessionFactory(stateServiceProps, false, true, "e5");
     }
 
     @Test
@@ -43,7 +45,7 @@ public class E5StateServiceTest {
                 .lt(Users.ID, 1000l)
                 .addGroup(filterGroup);
 
-        int countPrevious = E5StateService.find(Users.class)
+        int countPrevious = E5StateService.find(sessionFactory, Users.class)
                 .filter(combinedE5FilterOptions)
                 .sort(Users.NAME, true)
                 .list().size();
@@ -51,11 +53,11 @@ public class E5StateServiceTest {
         Users newUser = new Users();
         newUser.setName("John Doe");
         newUser.setEmail("john.doe1@example.com");
-        newUser = E5StateService.insertOne(newUser);
+        newUser = E5StateService.insertOne(sessionFactory, newUser);
 
         Assertions.assertTrue(newUser.getId()!=0);
 
-        int countAfter = E5StateService.find(Users.class)
+        int countAfter = E5StateService.find(sessionFactory, Users.class)
                 .filter(combinedE5FilterOptions)
                 .sort(Users.NAME, true)
                 .list().size();
@@ -80,7 +82,7 @@ public class E5StateServiceTest {
                 .addGroup(filterGroup1)
                 .addGroup(filterGroup1);
 
-        int countBefore = E5StateService.find(Users.class)
+        int countBefore = E5StateService.find(sessionFactory, Users.class)
                 .filter(filterOptions1)
                 .list().size();
 
@@ -90,9 +92,9 @@ public class E5StateServiceTest {
             newUser.setName("John Doe");
             String random = UUID.randomUUID().toString().replace("-","");
             newUser.setEmail("john.doe+"+random+"@example.com");
-            newUser = E5StateService.insertOne(newUser);
+            newUser = E5StateService.insertOne(sessionFactory, newUser);
 
-            int countAfter = E5StateService.find(Users.class)
+            int countAfter = E5StateService.find(sessionFactory, Users.class)
                     .filter(filterOptions1)
                     .list().size();
             Assertions.assertEquals(countBefore+1, countAfter);
@@ -109,10 +111,10 @@ public class E5StateServiceTest {
         Users newUser1 = new Users();
         newUser1.setName("John Doe");
         newUser1.setEmail("john.doe3@example.com");
-        int countPrevious = E5StateService.find(Users.class)
+        int countPrevious = E5StateService.find(sessionFactory, Users.class)
                 .list().size();
-        E5StateService.insertMany(List.of(newUser, newUser1));
-        int countAfter = E5StateService.find(Users.class)
+        E5StateService.insertMany(sessionFactory, List.of(newUser, newUser1));
+        int countAfter = E5StateService.find(sessionFactory, Users.class)
                 .list().size();
         Assertions.assertEquals(countPrevious+2, countAfter);
     }
@@ -124,7 +126,7 @@ public class E5StateServiceTest {
         Users newUser = new Users();
         newUser.setName("John Doe");
         newUser.setEmail("john.doe4@example.com");
-        Assertions.assertThrows(ConstraintViolationException.class, ()-> {E5StateService.insertMany(List.of(newUser, newUser));});
+        Assertions.assertThrows(ConstraintViolationException.class, ()-> {E5StateService.insertMany(sessionFactory, List.of(newUser, newUser));});
     }
 
     @Test
@@ -132,18 +134,18 @@ public class E5StateServiceTest {
         Users newUser = new Users();
         newUser.setName("John Doe");
         newUser.setEmail("john.doe5@example.com");
-        newUser = E5StateService.insertOne(newUser);
+        newUser = E5StateService.insertOne(sessionFactory, newUser);
         // Update a user
-        try (var cursor = E5StateService.find(Users.class).iterator()) {
+        try (var cursor = E5StateService.find(sessionFactory, Users.class).iterator()) {
             Users userToUpdate;
             while (cursor.hasNext()) {
                 userToUpdate = (Users) cursor.next();
                 userToUpdate.setEmail("john.doe_" + userToUpdate.getId() + "1111@example.com");
-                E5StateService.updateOne(userToUpdate);
+                E5StateService.updateOne(sessionFactory, userToUpdate);
             }
         }
 
-        try (var cursor = E5StateService.find(Users.class)
+        try (var cursor = E5StateService.find(sessionFactory, Users.class)
                 .iterator()) {
 
             while (cursor.hasNext()) {
@@ -163,19 +165,19 @@ public class E5StateServiceTest {
         Users newUser1 = new Users();
         newUser1.setName("John Doe");
         newUser1.setEmail("john.doe7@example.com");
-        int countPrevious = E5StateService.find(Users.class)
+        int countPrevious = E5StateService.find(sessionFactory, Users.class)
                 .list().size();
-        E5StateService.insertMany(List.of(newUser, newUser1));
+        E5StateService.insertMany(sessionFactory, List.of(newUser, newUser1));
         // Update Multiple user
-        List<Users> users = E5StateService.find(Users.class)
+        List<Users> users = E5StateService.find(sessionFactory, Users.class)
                 .list();
         for (Users user :users) {
             user.setEmail("john.doe_" + user.getId() + "1111@example.com");
         }
 
-        E5StateService.updateMany(users);
+        E5StateService.updateMany(sessionFactory, users);
 
-        try (var cursor = E5StateService.find(Users.class)
+        try (var cursor = E5StateService.find(sessionFactory, Users.class)
                 .iterator()) {
 
             while (cursor.hasNext()) {
@@ -189,13 +191,13 @@ public class E5StateServiceTest {
     public void testUpdateManyWithException() {
 
         // Update Multiple user
-        List<Users> users = E5StateService.find(Users.class)
+        List<Users> users = E5StateService.find(sessionFactory, Users.class)
                 .list();
         for (Users user :users) {
             user.setEmail("john.doe_1111@example.com");
         }
 
-        Assertions.assertThrows(ConstraintViolationException.class, ()-> {E5StateService.updateMany(users);});
+        Assertions.assertThrows(ConstraintViolationException.class, ()-> {E5StateService.updateMany(sessionFactory, users);});
     }
 
     @Test
@@ -216,22 +218,24 @@ public class E5StateServiceTest {
                 .lt(Users.ID, 1000l)
                 .addGroup(filterGroup);
 
-        int countBefore = E5StateService.find(Users.class)
+        int countBefore = E5StateService.find(sessionFactory, Users.class)
                 .filter(combinedE5FilterOptions)
                 .sort(Users.NAME, true)
+                .sort(Users.EMAIL, false)
+                .sort(Users.ID, true)
                 .list().size();
 
         if (countBefore>0) {
             // Delete a user
-            try (var cursor = E5StateService.find(Users.class)
+            try (var cursor = E5StateService.find(sessionFactory, Users.class)
                     .filter(combinedE5FilterOptions)
                     .iterator()) {
                 if (cursor.hasNext()) {
-                    E5StateService.deleteOne(Users.class, ((Users) cursor.next()).getId());
+                    E5StateService.deleteOne(sessionFactory, Users.class, ((Users) cursor.next()).getId());
                 }
             }
 
-            int countAfter = E5StateService.find(Users.class)
+            int countAfter = E5StateService.find(sessionFactory, Users.class)
                     .filter(combinedE5FilterOptions)
                     .sort(Users.NAME, true)
                     .list().size();
