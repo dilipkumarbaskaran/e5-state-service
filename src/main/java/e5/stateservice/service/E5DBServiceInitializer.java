@@ -43,6 +43,11 @@ public class E5DBServiceInitializer {
                                                       String packagePrefixToConsider) {
         Map<String, Object> settings = new HashMap<>();
         // Set properties
+        if (allowSchemaChanges) {
+            settings.put("jakarta.persistence.schema-generation.database.action", "update");
+        } else {
+            settings.put("jakarta.persistence.schema-generation.database.action", "validate");
+        }
         if (isProd) {
             settings.put("hibernate.connection.driver_class", POSTGRES_DRIVER_CLASS);
             settings.put("hibernate.connection.url", JDBC_POSTGRES_URL + dbServiceProps.getEndpoint() + "/" + dbServiceProps.getDbName());
@@ -55,13 +60,9 @@ public class E5DBServiceInitializer {
             settings.put("hibernate.connection.driver_class", H2_DRIVER_CLASS);
             settings.put("hibernate.connection.url",JDBC_H2_URL + dbServiceProps.getDbName() + ";INIT=CREATE SCHEMA IF NOT EXISTS " + dbServiceProps.getSchemaName() + ";");
             settings.put("hibernate.default_schema", dbServiceProps.getSchemaName());
+            settings.put("jakarta.persistence.schema-generation.database.action", "create-drop");
         }
 
-        if (allowSchemaChanges) {
-            settings.put("jakarta.persistence.schema-generation.database.action", "update");
-        } else {
-            settings.put("jakarta.persistence.schema-generation.database.action", "validate");
-        }
         settings.put("hibernate.show_sql", "true");
 
         var serviceRegistry = new StandardServiceRegistryBuilder()
