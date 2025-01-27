@@ -62,7 +62,7 @@ public class E5DBServiceInitializer {
         } else {
             settings.put("jakarta.persistence.schema-generation.database.action", "validate");
         }
-        settings.put("hibernate.show_sql", "true");
+        settings.put("hibernate.show_sql", "false");
 
         var serviceRegistry = new StandardServiceRegistryBuilder()
                 .applySettings(settings).build();
