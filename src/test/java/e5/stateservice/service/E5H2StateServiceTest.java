@@ -9,7 +9,15 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class E5H2StateServiceTest {
 
@@ -64,7 +72,7 @@ public class E5H2StateServiceTest {
                 .sort(Users.NAME, true)
                 .list().size();
 
-        Assertions.assertEquals(countPrevious+1, countAfter);
+        assertEquals(countPrevious+1, countAfter);
 
     }
 
@@ -83,7 +91,7 @@ public class E5H2StateServiceTest {
         E5StateService.insertMany(sessionFactory, List.of(newUser, newUser1));
         int countAfter = E5StateService.find(sessionFactory, Users.class)
                 .list().size();
-        Assertions.assertEquals(countPrevious+2, countAfter);
+        assertEquals(countPrevious+2, countAfter);
     }
 
     @Test
@@ -117,7 +125,7 @@ public class E5H2StateServiceTest {
 
             while (cursor.hasNext()) {
                 Users user = cursor.next();
-                Assertions.assertEquals("john.doe_" + user.getId() + "1111@example.com", user.getEmail());
+                assertEquals("john.doe_" + user.getId() + "1111@example.com", user.getEmail());
             }
         }
     }
@@ -149,7 +157,7 @@ public class E5H2StateServiceTest {
 
             while (cursor.hasNext()) {
                 Users user = cursor.next();
-                Assertions.assertEquals("john.doe_" + user.getId() + "1111@example.com", user.getEmail());
+                assertEquals("john.doe_" + user.getId() + "1111@example.com", user.getEmail());
             }
         }
     }
@@ -179,7 +187,7 @@ public class E5H2StateServiceTest {
         int countAfter = E5StateService.find(sessionFactory, Users.class)
                 .filter(filterOptions1)
                 .list().size();
-        Assertions.assertEquals(1, countAfter);
+        assertEquals(1, countAfter);
     }
 
     @Test
@@ -244,8 +252,130 @@ public class E5H2StateServiceTest {
                     .sort(Users.NAME, true)
                     .list().size();
 
-            Assertions.assertEquals(countBefore - 1, countAfter);
+            assertEquals(countBefore - 1, countAfter);
         }
 
+    }
+
+    @Test
+    void testPessimisticLockWithSkipLocked() throws Exception {
+
+        E5StateFilterOptions<Users> combinedE5FilterOptions = E5StateFilterOptions.create(Users.class)
+                .eq(Users.NAME, "John Doe1");
+
+        E5StateFilterOptions<Users> combinedE5FilterOptions1 = E5StateFilterOptions.create(Users.class)
+                .eq(Users.NAME, "John Doe1");
+
+        // Insert a new user
+        Users newUser = new Users();
+        newUser.setName("John Doe1");
+        newUser.setEmail("john.doe1@example.com");
+        newUser = E5StateService.insertOne(sessionFactory, newUser);
+
+        // Insert a new user
+        Users newUser1 = new Users();
+        newUser1.setName("John Doe1");
+        newUser1.setEmail("john.doe2@example.com");
+        newUser1 = E5StateService.insertOne(sessionFactory, newUser1);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        // Thread 1: Lock the first row
+        Future<Users> thread1 = executor.submit(() -> {
+            Optional<Users> users = E5StateService.find(sessionFactory, Users.class)
+                    .filter(combinedE5FilterOptions)
+                    .sort(Users.ID, true)
+                    .fetchAndUpdate((entity) -> {
+                        entity.setName("John Doe2");
+                    });
+            return users.get();
+        });
+
+        // Give Thread 1 time to acquire the lock
+        Thread.sleep(1000);
+
+        // Thread 2: Should skip the locked row and pick the next one
+        Future<Users> thread2 = executor.submit(() -> {
+            Optional<Users> users = E5StateService.find(sessionFactory, Users.class)
+                    .filter(combinedE5FilterOptions1)
+                    .sort(Users.ID, true)
+                    .fetchAndUpdate((entity) -> {
+                        entity.setName("John Doe3");
+                    });
+            return users.get();
+        });
+
+        // Wait for threads to complete
+        Users updateUser1 = thread1.get();
+        Users updateUser2 = thread2.get();
+        executor.shutdown();
+
+        // Verify that Thread 2 did not get the locked row
+        assertNotNull(updateUser1);
+        assertNotNull(updateUser2);
+
+        System.out.println(updateUser1);
+        System.out.println(updateUser2);
+        assertEquals(1, updateUser1.getId(), "Thread 1 should have picked ID 1.");
+        assertEquals(2, updateUser2.getId(), "Thread 2 should have skipped record ID 1 and picked ID 2.");
+    }
+
+    @Test
+    void testPessimisticLockWithSkipLockedWithoutFix() throws Exception {
+
+        E5StateFilterOptions<Users> combinedE5FilterOptions = E5StateFilterOptions.create(Users.class)
+                .eq(Users.NAME, "John Doe1");
+
+        E5StateFilterOptions<Users> combinedE5FilterOptions1 = E5StateFilterOptions.create(Users.class)
+                .eq(Users.NAME, "John Doe1");
+
+        // Insert a new user
+        Users newUser = new Users();
+        newUser.setName("John Doe1");
+        newUser.setEmail("john.doe1@example.com");
+        newUser = E5StateService.insertOne(sessionFactory, newUser);
+
+        // Insert a new user
+        Users newUser1 = new Users();
+        newUser1.setName("John Doe1");
+        newUser1.setEmail("john.doe2@example.com");
+        newUser1 = E5StateService.insertOne(sessionFactory, newUser1);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        // Thread 1: Lock the first row
+        Future<Users> thread1 = executor.submit(() -> {
+            List<Users> users = E5StateService.find(sessionFactory, Users.class)
+                    .filter(combinedE5FilterOptions)
+                    .sort(Users.ID, true)
+                    .list();
+            System.out.println(LocalDateTime.now() + " --- " + users.get(0));
+            users.get(0).setName("John Doe2");
+            E5StateService.updateOne(sessionFactory, users.get(0));
+            return users.get(0);
+        });
+
+        // Thread 2: Should skip the locked row and pick the next one
+        Future<Users> thread2 = executor.submit(() -> {
+            List<Users> users = E5StateService.find(sessionFactory, Users.class)
+                    .filter(combinedE5FilterOptions1)
+                    .sort(Users.ID, true)
+                    .list();
+            System.out.println(LocalDateTime.now() + " --- " + users.get(0));
+            users.get(0).setName("John Doe3");
+            E5StateService.updateOne(sessionFactory, users.get(0));
+            return users.get(0);
+        });
+
+        // Wait for threads to complete
+        Users updateUser1 = thread1.get();
+        Users updateUser2 = thread2.get();
+        executor.shutdown();
+
+        // Verify that Thread 2 did not get the locked row
+        assertNotNull(updateUser1);
+        assertNotNull(updateUser2);
+        System.out.println(updateUser1);
+        System.out.println(updateUser2);
+        assertEquals(1, updateUser1.getId(), "Thread 1 should have picked ID 1.");
+        assertEquals(1, updateUser2.getId(), "Thread 2 would have picked record ID 1 due to unavailability of lock");
     }
 }

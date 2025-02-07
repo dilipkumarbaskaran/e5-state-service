@@ -2,14 +2,16 @@ package e5.stateservice.service;
 
 import e5.stateservice.model.E5SearchField;
 import e5.stateservice.model.E5State;
+import jakarta.persistence.LockModeType;
 import lombok.Getter;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
+import org.hibernate.Transaction;
 import org.hibernate.query.Query;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+import java.util.Optional;
 
 public final class E5StateIterable<T extends E5State> {
     @Getter
@@ -99,6 +101,33 @@ public final class E5StateIterable<T extends E5State> {
         List<T> recordList = e5StateCursor.list();
         e5StateCursor.close();
         return recordList;
+    }
+
+    public Optional<T> fetchAndUpdate(EntityUpdater<T> updater) {
+        Transaction transaction = null;
+        try (Session session = sessionFactory.openSession()) {
+            transaction = session.beginTransaction();
+
+            limit(1);// Ensure only one row is fetched
+            Query query = this.createQuery(session);
+            query.setLockMode(LockModeType.PESSIMISTIC_WRITE); // Lock the row
+
+            Optional<T> result = query.uniqueResultOptional();
+
+            if (result.isPresent()) {
+                T entity = result.get();
+                updater.update(entity);  // Apply the update function
+                session.update(entity); // Update entity
+            }
+
+            transaction.commit();
+            return result;
+        } catch (Exception e) {
+            if (transaction != null && transaction.isActive()) {
+                transaction.rollback();
+            }
+            throw new RuntimeException("Error in atomic fetch and update", e);
+        }
     }
 
 
