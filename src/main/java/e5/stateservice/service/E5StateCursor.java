@@ -33,7 +33,6 @@ public final class E5StateCursor<T> implements Iterator<T>, AutoCloseable {
     private void fetchNextBatch() {
         query.setFirstResult(currentIndex);
         //query.setMaxResults(batchSize);
-        System.out.println("query " + query.getQueryString());
         currentBatch = query.list();
         currentIndex += currentBatch.size();
     }

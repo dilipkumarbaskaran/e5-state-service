@@ -18,7 +18,7 @@ plugins {
 }
 
 group = 'e5.state'
-version = '0.10'
+version = '1.0'
 
 repositories {
     mavenCentral()
