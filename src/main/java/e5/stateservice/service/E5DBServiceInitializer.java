@@ -62,8 +62,7 @@ public class E5DBServiceInitializer {
             settings.put("hibernate.default_schema", dbServiceProps.getSchemaName());
             settings.put("jakarta.persistence.schema-generation.database.action", "create-drop");
         }
-
-        settings.put("hibernate.show_sql", "true");
+        settings.put("hibernate.show_sql", "false");
 
         var serviceRegistry = new StandardServiceRegistryBuilder()
                 .applySettings(settings).build();
