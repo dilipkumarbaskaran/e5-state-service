@@ -1,7 +1,6 @@
 package e5.stateservice.service;
 
 import e5.stateservice.model.E5State;
-import jakarta.transaction.Transactional;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
@@ -57,7 +56,6 @@ public final class E5StateService {
         return entities;
     }
 
-    @Transactional
     public static <T extends E5State> boolean deleteOne(SessionFactory sessionFactory, Class<T> entityClass, long id) {
         executeInsideTransaction(session -> {
             T entity = (T) session.get(entityClass, id);
@@ -67,10 +65,6 @@ public final class E5StateService {
         }, sessionFactory);
         return true;
     }
-
-
-
-
 
     private static void executeInsideTransaction(Consumer<Session> action, SessionFactory sessionFactory) {
         Transaction transaction = null;

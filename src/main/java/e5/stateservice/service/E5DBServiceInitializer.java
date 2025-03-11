@@ -68,16 +68,18 @@ public class E5DBServiceInitializer {
                 .applySettings(settings).build();
         Reflections reflections = new Reflections(packagePrefixToConsider);
         Set<Class<? extends E5State>> modelClasses = reflections.getSubTypesOf(E5State.class);
-
+       SessionFactory buildSessionFactory = null;
         try {
             if (allowSchemaChanges || canMakeSchemaChanges(settings, serviceRegistry, modelClasses)) {
-                return getMetadata(serviceRegistry, modelClasses).buildSessionFactory();
+                 buildSessionFactory = getMetadata(serviceRegistry, modelClasses).buildSessionFactory();
             } else {
                 throw new RuntimeException("Schema changes found!");
             }
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            e.printStackTrace();
+            System.exit(1);
         }
+        return buildSessionFactory;
     }
 
     private static Metadata getMetadata(StandardServiceRegistry serviceRegistry, Set<Class<? extends E5State>> modelClasses) {
