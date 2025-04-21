@@ -18,7 +18,7 @@ plugins {
 }
 
 group = 'e5.state'
-version = '1.0.4'
+version = '1.1.0'
 
 
 repositories {
@@ -70,6 +70,7 @@ dependencies {
     implementation("javax.persistence:javax.persistence-api:${persistenceVersion}")
     implementation("org.reflections:reflections:${reflectionsVersion}")
     implementation 'com.h2database:h2:2.1.214'
+    implementation 'org.hibernate:hibernate-hikaricp:6.6.8.Final'
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:${junitJupiterVersion}")
     testImplementation("org.junit.jupiter:junit-jupiter-engine:${junitJupiterVersion}")
