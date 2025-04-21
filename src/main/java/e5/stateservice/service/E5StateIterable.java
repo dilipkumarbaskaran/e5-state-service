@@ -97,7 +97,7 @@ public final class E5StateIterable<T extends E5State> {
      */
     public List<T> list() {
         Session session = sessionFactory.openSession();
-        E5StateCursor<T> e5StateCursor = new E5StateCursor<>(entityClass, session, this.createQuery(sessionFactory.openSession()), batchSize);
+        E5StateCursor<T> e5StateCursor = new E5StateCursor<>(entityClass, session, this.createQuery(session), batchSize);
         List<T> recordList = e5StateCursor.list();
         e5StateCursor.close();
         return recordList;
