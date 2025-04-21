@@ -69,8 +69,6 @@ public class E5DBServiceInitializer {
             settings.put("jakarta.persistence.schema-generation.database.action", "create-drop");
         }
         settings.put("hibernate.show_sql", "false");
-        settings.put("hibernate.query.plan_cache_max_size", "10");
-        settings.put("hibernate.query.plan_parameter_metadata_max_size", "10");
 
         var serviceRegistry = new StandardServiceRegistryBuilder()
                 .applySettings(settings).build();
