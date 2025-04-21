@@ -48,6 +48,12 @@ public class E5DBServiceInitializer {
         } else {
             settings.put("jakarta.persistence.schema-generation.database.action", "validate");
         }
+
+        settings.put("hibernate.hikari.minimumIdle","0");
+        settings.put("hibernate.hikari.idleTimeout","300000");
+        settings.put("hibernate.hikari.connectionTimeout","30000");
+        settings.put("hibernate.hikari.maximumPoolSize","5");
+
         if (isProd) {
             settings.put("hibernate.connection.driver_class", POSTGRES_DRIVER_CLASS);
             settings.put("hibernate.connection.url", JDBC_POSTGRES_URL + dbServiceProps.getEndpoint() + "/" + dbServiceProps.getDbName());
