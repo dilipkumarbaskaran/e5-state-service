@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Properties;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -25,12 +26,21 @@ public class E5StateServiceTest {
 
     @BeforeEach
     public void setupStateService() {
+        Properties customProperties = new Properties();
+
+        // Set custom properties for Hibernate
+        customProperties.put("queryPlanCacheMaxSize", "1024");
+        customProperties.put("showSql", "true");
+        customProperties.put("inClauseParameterPadding", "true");
+
         E5DBServiceProperties stateServiceProps = E5DBServiceProperties.builder()
                 .endpoint("localhost:5432")
                 .dbName("yourdb")
                 .schemaName("schema1")
                 .dbUserName("postgres")
-                .dbPassword("pgadmin").build();
+                .dbPassword("pgadmin")
+                .dbProperties(customProperties).
+                build();
         sessionFactory = E5DBServiceInitializer.buildSessionFactory(stateServiceProps, false, true, "e5");
     }
 

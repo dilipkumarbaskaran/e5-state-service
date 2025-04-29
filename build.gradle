@@ -73,8 +73,6 @@ dependencies {
     implementation("org.reflections:reflections:${reflectionsVersion}")
     implementation 'com.h2database:h2:2.1.214'
     implementation 'org.hibernate:hibernate-hikaricp:6.6.8.Final'
-    implementation 'io.github.cdimascio:java-dotenv:5.2.2'
-    implementation group: 'org.yaml', name: 'snakeyaml', version: '2.2'
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:${junitJupiterVersion}")
     testImplementation("org.junit.jupiter:junit-jupiter-engine:${junitJupiterVersion}")
