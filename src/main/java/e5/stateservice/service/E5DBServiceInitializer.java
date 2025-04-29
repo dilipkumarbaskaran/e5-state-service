@@ -1,31 +1,25 @@
 package e5.stateservice.service;
 
-import e5.stateservice.model.E5State;
 import e5.stateservice.model.E5DBServiceProperties;
+import e5.stateservice.model.E5State;
+import io.github.cdimascio.dotenv.Dotenv;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.Metadata;
 import org.hibernate.boot.MetadataSources;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.tool.schema.TargetType;
-import org.hibernate.tool.schema.spi.ContributableMatcher;
-import org.hibernate.tool.schema.spi.ExceptionHandler;
-import org.hibernate.tool.schema.spi.ExecutionOptions;
-import org.hibernate.tool.schema.spi.SchemaManagementTool;
-import org.hibernate.tool.schema.spi.ScriptTargetOutput;
-import org.hibernate.tool.schema.spi.TargetDescriptor;
+import org.hibernate.tool.schema.spi.*;
 import org.reflections.Reflections;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class E5DBServiceInitializer {
     private static final String GRADLE_SETTINGS_FILE_NAME = "settings.gradle";
@@ -36,6 +30,7 @@ public class E5DBServiceInitializer {
     public static final String JDBC_H2_URL = "jdbc:h2:mem:";
     public static final String POSTGRES_DIALECT = "org.hibernate.dialect.PostgreSQLDialect";
     public static final String H2_DIALECT = "org.hibernate.dialect.H2Dialect";
+    private static final Logger logger = LoggerFactory.getLogger(E5DBServiceInitializer.class);
 
     public  static SessionFactory buildSessionFactory(E5DBServiceProperties dbServiceProps,
                                                       boolean allowSchemaChanges,
@@ -49,10 +44,11 @@ public class E5DBServiceInitializer {
             settings.put("jakarta.persistence.schema-generation.database.action", "validate");
         }
 
-        settings.put("hibernate.hikari.minimumIdle","0");
-        settings.put("hibernate.hikari.idleTimeout","300000");
-        settings.put("hibernate.hikari.connectionTimeout","30000");
-        settings.put("hibernate.hikari.maximumPoolSize","5");
+        settings.put("hibernate.hikari.minimumIdle", "0");
+        settings.put("hibernate.hikari.idleTimeout", "300000");
+        settings.put("hibernate.hikari.connectionTimeout", "30000");
+        settings.put("hibernate.hikari.maximumPoolSize", "5");
+        applyCustomHibernateConfig(settings);
 
         if (isProd) {
             settings.put("hibernate.connection.driver_class", POSTGRES_DRIVER_CLASS);
@@ -68,7 +64,6 @@ public class E5DBServiceInitializer {
             settings.put("hibernate.default_schema", dbServiceProps.getSchemaName());
             settings.put("jakarta.persistence.schema-generation.database.action", "create-drop");
         }
-        settings.put("hibernate.show_sql", "false");
 
         var serviceRegistry = new StandardServiceRegistryBuilder()
                 .applySettings(settings).build();
@@ -86,6 +81,108 @@ public class E5DBServiceInitializer {
             System.exit(1);
         }
         return buildSessionFactory;
+    }
+
+    /**
+     * This method is used to apply custom Hibernate configuration.
+     * It reads the configuration from the .env file and applies it to the settings map.
+     *
+     * @param settings The settings map to which the custom configuration will be applied.
+     */
+    private static void applyCustomHibernateConfig(Map<String, Object> settings) {
+        final String DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE = "1";
+        final String DEFAULT_SHOW_SQL = "false";
+        Dotenv dotEnv = Dotenv.configure().ignoreIfMissing().ignoreIfMalformed().load();
+        Yaml yaml = new Yaml();
+
+        boolean configApplied = false;
+
+        if (dotEnv != null) {
+            for (var entry : dotEnv.entries()) {
+                if ("dbconfig".equals(entry.getKey()) && entry.getValue() != null) {
+                    E5DBServiceProperties config = yaml.loadAs(entry.getValue(), E5DBServiceProperties.class);
+                    if (config != null && config.getDbProperties() != null) {
+                        //Get queryPlanCacheMaxSize property from dbProperties
+                        String queryPlanCacheMaxSize = getQueryPlanCacheMaxSize(config.getDbProperties(), DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE);
+                        settings.put("hibernate.query.plan_cache_max_size", queryPlanCacheMaxSize);
+                        //Get show_sql property from dbProperties
+                        String showSql = getShowSql(config.getDbProperties(), DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE);
+                        settings.put("hibernate.show_sql", config.getDbProperties().getProperty("show_sql", showSql));
+                        //Get in_clause_parameter_padding property from dbProperties
+                        String inClauseParameterPadding = getInClauseParameterPadding(config.getDbProperties(), "true");
+                        settings.put("hibernate.query.in_clause_parameter_padding", inClauseParameterPadding);
+                        logger.info("Custom Hibernate configuration applied: queryPlanCacheMaxSize={}, show_sql={}, " +
+                                "inClauseParameterPadding={} ", queryPlanCacheMaxSize, settings.get("hibernate.show_sql"), inClauseParameterPadding);
+                        configApplied = true;
+                    }
+                }
+            }
+        }
+
+        if (!configApplied) {
+            settings.put("hibernate.query.plan_cache_max_size", DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE);
+            settings.put("hibernate.show_sql", DEFAULT_SHOW_SQL);
+            settings.put("hibernate.query.in_clause_parameter_padding", "true");
+
+            logger.info("Default Hibernate configuration applied: queryPlanCacheMaxSize={}, show_sql={}", DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE, DEFAULT_SHOW_SQL);
+        }
+    }
+
+    /**
+     * This method retrieves the queryPlanCacheMaxSize property from the database properties.
+     * If the value is invalid, it defaults to the provided defaultValue.
+     *
+     * @param dbProperties The database properties.
+     * @param defaultValue The default value to use if the retrieved value is invalid.
+     * @return The valid queryPlanCacheMaxSize value.
+     */
+    private static String getQueryPlanCacheMaxSize(Properties dbProperties, String defaultValue) {
+        String queryPlanCacheMaxSize = dbProperties.getProperty("queryPlanCacheMaxSize", defaultValue);
+        try {
+            int intValue = Integer.parseInt(queryPlanCacheMaxSize);
+            if (intValue <= 0) {
+                logger.warn("Invalid queryPlanCacheMaxSize value: {}. Defaulting to {}.", queryPlanCacheMaxSize, defaultValue);
+                queryPlanCacheMaxSize = defaultValue;
+            }
+        } catch (NumberFormatException e) {
+            logger.error("Invalid queryPlanCacheMaxSize value: {}. Defaulting to {}.", queryPlanCacheMaxSize, defaultValue, e);
+            queryPlanCacheMaxSize = defaultValue;
+        }
+        return queryPlanCacheMaxSize;
+    }
+
+    /**
+     * This method retrieves the show_sql property from the database properties.
+     * If the value is invalid, it defaults to the provided defaultValue.
+     *
+     * @param dbProperties The database properties.
+     * @param defaultValue The default value to use if the retrieved value is invalid.
+     * @return The valid show_sql value.
+     */
+    private static String getShowSql(Properties dbProperties, String defaultValue) {
+        String showSql = dbProperties.getProperty("showSql", defaultValue);
+        if (!"true".equalsIgnoreCase(showSql) && !"false".equalsIgnoreCase(showSql)) {
+            logger.warn("Invalid showSql [show_sql] value: {}. Defaulting to {}.", showSql, defaultValue);
+            showSql = defaultValue;
+        }
+        return showSql;
+    }
+
+    /**
+     * This method retrieves the in_clause_parameter_padding property from the database properties.
+     * If the value is invalid, it defaults to the provided defaultValue.
+     *
+     * @param dbProperties The database properties.
+     * @param defaultValue The default value to use if the retrieved value is invalid.
+     * @return The valid in_clause_parameter_padding value.
+     */
+    private static String getInClauseParameterPadding(Properties dbProperties, String defaultValue) {
+        String inClauseParameterPadding = dbProperties.getProperty("inClauseParameterPadding", defaultValue);
+        if (!"true".equalsIgnoreCase(inClauseParameterPadding) && !"false".equalsIgnoreCase(inClauseParameterPadding)) {
+            logger.warn("Invalid inClauseParameterPadding [hibernate.query.in_clause_parameter_padding] value : {}. Defaulting to {}.", inClauseParameterPadding, defaultValue);
+            inClauseParameterPadding = defaultValue;
+        }
+        return inClauseParameterPadding;
     }
 
     private static Metadata getMetadata(StandardServiceRegistry serviceRegistry, Set<Class<? extends E5State>> modelClasses) {

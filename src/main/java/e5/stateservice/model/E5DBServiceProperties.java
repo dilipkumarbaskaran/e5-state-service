@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Properties;
+
 @Builder
 @Data
 @NoArgsConstructor
@@ -15,4 +17,6 @@ public class E5DBServiceProperties {
     String schemaName;
     String dbUserName;
     String dbPassword;
+    Properties dbProperties;
+
 }
