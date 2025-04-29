@@ -92,6 +92,7 @@ public class E5DBServiceInitializer {
     private static void applyCustomHibernateConfig(Map<String, Object> settings) {
         final String DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE = "1";
         final String DEFAULT_SHOW_SQL = "false";
+        final String DEFAULT_IN_CLAUSE_PARAM_PADDING = "true";
         Dotenv dotEnv = Dotenv.configure().ignoreIfMissing().ignoreIfMalformed().load();
         Yaml yaml = new Yaml();
 
@@ -102,17 +103,21 @@ public class E5DBServiceInitializer {
                 if ("dbconfig".equals(entry.getKey()) && entry.getValue() != null) {
                     E5DBServiceProperties config = yaml.loadAs(entry.getValue(), E5DBServiceProperties.class);
                     if (config != null && config.getDbProperties() != null) {
+
                         //Get queryPlanCacheMaxSize property from dbProperties
                         String queryPlanCacheMaxSize = getQueryPlanCacheMaxSize(config.getDbProperties(), DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE);
                         settings.put("hibernate.query.plan_cache_max_size", queryPlanCacheMaxSize);
+
                         //Get show_sql property from dbProperties
-                        String showSql = getShowSql(config.getDbProperties(), DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE);
-                        settings.put("hibernate.show_sql", config.getDbProperties().getProperty("show_sql", showSql));
+                        String showSql = getShowSql(config.getDbProperties(), DEFAULT_SHOW_SQL);
+                        settings.put("hibernate.show_sql", showSql);
+
                         //Get in_clause_parameter_padding property from dbProperties
-                        String inClauseParameterPadding = getInClauseParameterPadding(config.getDbProperties(), "true");
+                        String inClauseParameterPadding = getInClauseParameterPadding(config.getDbProperties(), DEFAULT_IN_CLAUSE_PARAM_PADDING);
                         settings.put("hibernate.query.in_clause_parameter_padding", inClauseParameterPadding);
-                        logger.info("Custom Hibernate configuration applied: queryPlanCacheMaxSize={}, show_sql={}, " +
-                                "inClauseParameterPadding={} ", queryPlanCacheMaxSize, settings.get("hibernate.show_sql"), inClauseParameterPadding);
+
+                        logger.info("Custom Hibernate configuration applied: queryPlanCacheMaxSize={}, showSql={}, " +
+                                "inClauseParameterPadding={} ", queryPlanCacheMaxSize, showSql, inClauseParameterPadding);
                         configApplied = true;
                     }
                 }
@@ -122,9 +127,10 @@ public class E5DBServiceInitializer {
         if (!configApplied) {
             settings.put("hibernate.query.plan_cache_max_size", DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE);
             settings.put("hibernate.show_sql", DEFAULT_SHOW_SQL);
-            settings.put("hibernate.query.in_clause_parameter_padding", "true");
+            settings.put("hibernate.query.in_clause_parameter_padding", DEFAULT_IN_CLAUSE_PARAM_PADDING);
 
-            logger.info("Default Hibernate configuration applied: queryPlanCacheMaxSize={}, show_sql={}", DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE, DEFAULT_SHOW_SQL);
+            logger.info("Default Hibernate configuration applied: queryPlanCacheMaxSize={}, show_sql={}, inClauseParameterPadding={} ",
+                    DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE, DEFAULT_SHOW_SQL, DEFAULT_IN_CLAUSE_PARAM_PADDING);
         }
     }
 

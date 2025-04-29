@@ -86,8 +86,8 @@ public final class E5StateFilterOptions<T extends E5State> {
 
     /**
      * Adding NOT IN Filter to the field and values
-     * @param field - to which IN filter has to be applied
-     * @param values - list of values to be included in the filter
+     * @param field - to which NOT IN filter has to be applied
+     * @param values - list of values to be excluded in the filter
      * @return E5StateFilterOptions instance for the entityClass Object with filter added
      * @param <F>
      */

@@ -202,7 +202,7 @@ public class E5StateServiceTest {
             logger.info("Result count: {}", count);
             Assertions.assertTrue(count >= 0, "The count should be non-negative.");
         } catch (Exception e) {
-            logger.error("Error during testSearchWithInClause: {}", e.getMessage(), e);
+            logger.error("Error during testSearchWithNotInClause: {}", e.getMessage(), e);
             Assertions.fail("Exception occurred during test execution: " + e.getMessage());
         }
     }
