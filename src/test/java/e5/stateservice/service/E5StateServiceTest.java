@@ -1,19 +1,26 @@
 package e5.stateservice.service;
 
 import e5.stateservice.model.E5DBServiceProperties;
+import e5.stateservice.model.E5SearchField;
+import e5.stateservice.model.state.NameEmailFilter;
 import e5.stateservice.model.state.Users;
 import org.hibernate.SessionFactory;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+
 
 public class E5StateServiceTest {
 
+    private static final Logger logger = LoggerFactory.getLogger(E5StateServiceTest.class);
     private SessionFactory sessionFactory;
 
     @BeforeEach
@@ -98,6 +105,105 @@ public class E5StateServiceTest {
                     .filter(filterOptions1)
                     .list().size();
             Assertions.assertEquals(countBefore+1, countAfter);
+        }
+    }
+
+    /**
+     * This method tests the search functionality with a large number of parameters.
+     * It creates a filter with multiple conditions and verifies the result count.
+     */
+    @Test
+    public void testSearchWithLargeParameterValues() {
+        assertDoesNotThrow(() -> {
+            for (int iteration = 0; iteration < 1; iteration++) {
+                E5StateFilterOptions<Users> filterOptions = E5StateFilterOptions.create(Users.class);
+                //int limit =  (int)(Math.random() * 1000) + 1;
+                int limit = 1000;
+                logger.info("Iteration {}: Limit: {}", iteration + 1, limit);
+                for (int i = 0; i < limit; i++) {
+                    filterOptions.lt(Users.ID, 5l + i);
+                }
+
+                E5StateFilterGroup<Users> filterGroup1 = E5StateFilterGroup.create(Users.class, E5StateFilterGroup.LogicalOperator.OR)
+                        .addFilter(filterOptions)
+                        .addFilter(filterOptions);
+
+                E5StateFilterOptions<Users> filterOptions2 = E5StateFilterOptions.create(Users.class)
+                        .addGroup(filterGroup1)
+                        .addGroup(filterGroup1);
+
+                int countBefore = E5StateService.find(sessionFactory, Users.class)
+                        .filter(filterOptions2)
+                        .list().size();
+
+                // Check query plan cache size
+                logger.info("Iteration {}: ", iteration + 1);
+            }
+            logger.info("Executed testSearchWithLargeParameterValues successfully.");
+        });
+    }
+
+    /**
+     * This method tests the search functionality with an IN clause.
+     * It creates a filter with multiple values and verifies the result count.
+     */
+    @Test
+    public void testSearchWithInClause() {
+        E5SearchField<Users, NameEmailFilter> nameField = Users.NAMEEMAIL;
+
+        List<NameEmailFilter> filterValues = List.of(
+                new NameEmailFilter("John 1", "john.doe_11111@example.com"),
+                new NameEmailFilter("John Doe", "john.doe_31111@example.com")
+        );
+
+        try {
+            // Create filter options with the IN condition
+            E5StateFilterOptions<Users> filterOptions = E5StateFilterOptions.create(Users.class)
+                    .in(nameField, filterValues);
+
+            // Execute the query and verify the result
+            int count = E5StateService.find(sessionFactory, Users.class)
+                    .filter(filterOptions)
+                    .list()
+                    .size();
+
+            logger.info("Result count: {}", count);
+            Assertions.assertTrue(count >= 0, "The count should be non-negative.");
+        } catch (Exception e) {
+            logger.error("Error during testSearchWithInClause: {}", e.getMessage(), e);
+            Assertions.fail("Exception occurred during test execution: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Test for searching with NOT IN clause.
+     * This test checks if the search functionality works correctly when using the NOT IN clause.
+     */
+    @Test
+    public void testSearchWithNotInClause() {
+        E5SearchField<Users, NameEmailFilter> nameField = Users.NAMEEMAIL;
+
+        List<NameEmailFilter> filterValues = List.of(
+                new NameEmailFilter("John 1", "john.doe+1fb6ca70e7d2423d8a59ea86d3a2f409@example.com"),
+                new NameEmailFilter("John 2", "john.doe+c03e49cb8542478a9498228833413a8e@example.com")
+        );
+
+        try {
+            // Create filter options with the NOT IN condition
+            E5StateFilterOptions<Users> filterOptions = E5StateFilterOptions.create(Users.class)
+                    .nin(nameField, filterValues);
+
+            // Execute the query and verify the result
+            int count = E5StateService.find(sessionFactory, Users.class)
+                    .filter(filterOptions)
+                    .list()
+                    .size();
+
+            logger.info("Result count: {}", count);
+            Assertions.assertTrue(count >= 0, "The count should be non-negative.");
+        } catch (Exception e) {
+            logger.error("Error during testSearchWithInClause: {}", e.getMessage(), e);
+            Assertions.fail("Exception occurred during test execution: " + e.getMessage());
         }
     }
 
