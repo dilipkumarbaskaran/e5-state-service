@@ -30,7 +30,7 @@ public class E5StateServiceTest {
 
         // Set custom properties for Hibernate
         customProperties.put("queryPlanCacheMaxSize", "1024");
-        customProperties.put("showSql", "true");
+        customProperties.put("showSql", "false");
         customProperties.put("inClauseParameterPadding", "true");
 
         E5DBServiceProperties stateServiceProps = E5DBServiceProperties.builder()

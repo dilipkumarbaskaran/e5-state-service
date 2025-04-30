@@ -42,11 +42,6 @@ public class E5DBServiceInitializer {
             settings.put("jakarta.persistence.schema-generation.database.action", "validate");
         }
 
-        settings.put("hibernate.hikari.minimumIdle", "0");
-        settings.put("hibernate.hikari.idleTimeout", "300000");
-        settings.put("hibernate.hikari.connectionTimeout", "30000");
-        settings.put("hibernate.hikari.maximumPoolSize", "5");
-
         // apply custom Hibernate configuration
         applyCustomHibernateConfig(settings, dbServiceProps.getDbProperties());
 
@@ -94,95 +89,177 @@ public class E5DBServiceInitializer {
         final String DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE = "1";
         final String DEFAULT_SHOW_SQL = "false";
         final String DEFAULT_IN_CLAUSE_PARAM_PADDING = "true";
+        final String DEFAULT_MINIMUM_IDLE = "0";
+        final String DEFAULT_IDLE_TIMEOUT = "300000";
+        final String DEFAULT_CONNECTION_TIMEOUT= "30000";
+        final String DEFAULT_MAXIMUM_POOL_SIZE = "5";
 
         //Get queryPlanCacheMaxSize property from dbProperties
-        String queryPlanCacheMaxSize = getQueryPlanCacheMaxSize(dbServiceProps, DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE);
+        String queryPlanCacheMaxSize = getValidatedProperty(
+                dbServiceProps,
+                "queryPlanCacheMaxSize",
+                DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE,
+                new Validator<Integer>() {
+                    @Override
+                    public Integer parse(String value) {
+                        return Integer.parseInt(value);
+                    }
+
+                    @Override
+                    public boolean isValid(Integer value) {
+                        return value > 0;
+                    }
+                }
+        );
         settings.put("hibernate.query.plan_cache_max_size", queryPlanCacheMaxSize);
 
-        //Get showSql property from dbProperties
-        String showSql = getShowSql(dbServiceProps, DEFAULT_SHOW_SQL);
+        // Get showSql property from dbProperties
+        String showSql = getValidatedProperty(
+                dbServiceProps,
+                "showSql",
+                DEFAULT_SHOW_SQL,
+                new Validator<String>() {
+                    @Override
+                    public String parse(String value) {
+                        return value;
+                    }
+
+                    @Override
+                    public boolean isValid(String value) {
+                        return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
+                    }
+                }
+        );
         settings.put("hibernate.show_sql", showSql);
 
-        //Get inClauseParameterPadding property from dbProperties
-        String inClauseParameterPadding = getInClauseParameterPadding(dbServiceProps, DEFAULT_IN_CLAUSE_PARAM_PADDING);
+        // Get inClauseParameterPadding property from dbProperties
+        String inClauseParameterPadding = getValidatedProperty(
+                dbServiceProps,
+                "inClauseParameterPadding",
+                DEFAULT_IN_CLAUSE_PARAM_PADDING,
+                new Validator<String>() {
+                    @Override
+                    public String parse(String value) {
+                        return value;
+                    }
+
+                    @Override
+                    public boolean isValid(String value) {
+                        return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
+                    }
+                }
+        );
         settings.put("hibernate.query.in_clause_parameter_padding", inClauseParameterPadding);
 
+        // Get minimumIdle property from dbProperties
+        String minimumIdle = getValidatedProperty(
+                dbServiceProps,
+                "minimumIdle",
+                DEFAULT_MINIMUM_IDLE,
+                new Validator<Integer>() {
+                    @Override
+                    public Integer parse(String value) {
+                        return Integer.parseInt(value);
+                    }
+
+                    @Override
+                    public boolean isValid(Integer value) {
+                        return value >= 0;
+                    }
+                }
+        );
+        settings.put("hibernate.hikari.minimumIdle", minimumIdle);
+
+        // Get idleTimeout property from dbProperties
+        String idleTimeout = getValidatedProperty(
+                dbServiceProps,
+                "idleTimeout",
+                DEFAULT_IDLE_TIMEOUT,
+                new Validator<Long>() {
+                    @Override
+                    public Long parse(String value) {
+                        return Long.parseLong(value);
+                    }
+
+                    @Override
+                    public boolean isValid(Long value) {
+                        return value >= 0;
+                    }
+                }
+        );
+        settings.put("hibernate.hikari.idleTimeout", idleTimeout);
+
+        // Get connectionTimeout property from dbProperties
+        String connectionTimeout = getValidatedProperty(
+                dbServiceProps,
+                "connectionTimeout",
+                DEFAULT_CONNECTION_TIMEOUT,
+                new Validator<Long>() {
+                    @Override
+                    public Long parse(String value) {
+                        return Long.parseLong(value);
+                    }
+
+                    @Override
+                    public boolean isValid(Long value) {
+                        return value >= 0;
+                    }
+                }
+        );
+        settings.put("hibernate.hikari.connectionTimeout", connectionTimeout);
+
+        // Get maximumPoolSize property from dbProperties
+        String maximumPoolSize = getValidatedProperty(
+                dbServiceProps,
+                "maximumPoolSize",
+                DEFAULT_MAXIMUM_POOL_SIZE,
+                new Validator<Integer>() {
+                    @Override
+                    public Integer parse(String value) {
+                        return Integer.parseInt(value);
+                    }
+
+                    @Override
+                    public boolean isValid(Integer value) {
+                        return value > 0;
+                    }
+                }
+        );
+        settings.put("hibernate.hikari.maximumPoolSize", maximumPoolSize);
+
         logger.info("Custom Hibernate configuration applied: [hibernate.query.plan_cache_max_size]={}, [hibernate.show_sql]={}, " +
-                "[hibernate.query.in_clause_parameter_padding]={} ", queryPlanCacheMaxSize, showSql, inClauseParameterPadding);
+                        "[hibernate.query.in_clause_parameter_padding]={}, [hibernate.hikari.minimumIdle]={}, [hibernate.hikari.idleTimeout]={}, " +
+                        "[hibernate.hikari.connectionTimeout]={}, [hibernate.hikari.maximumPoolSize]={}", queryPlanCacheMaxSize, showSql,
+                inClauseParameterPadding, minimumIdle, idleTimeout, connectionTimeout, maximumPoolSize);
 
     }
 
     /**
-     * This method retrieves the queryPlanCacheMaxSize property from the database properties.
-     * If the value is invalid, it defaults to the provided defaultValue.
+     * This method retrieves a property from the database properties, validates it, and applies a default value if necessary.
      *
      * @param dbProperties The database properties.
+     * @param propertyName The name of the property to retrieve.
      * @param defaultValue The default value to use if the retrieved value is invalid.
-     * @return The valid queryPlanCacheMaxSize value.
+     * @param validator    A functional interface to validate the property value.
+     * @param <T>          The type of the property value.
+     * @return The valid property value.
      */
-    private static String getQueryPlanCacheMaxSize(Properties dbProperties, String defaultValue) {
+    private static <T> String getValidatedProperty(Properties dbProperties, String propertyName, String defaultValue, Validator<T> validator) {
         if (dbProperties == null) {
             return defaultValue;
         }
-        // Get the queryPlanCacheMaxSize property from dbProperties
-        String queryPlanCacheMaxSize = dbProperties.getProperty("queryPlanCacheMaxSize", defaultValue);
+        String propertyValue = dbProperties.getProperty(propertyName, defaultValue.toString());
         try {
-            int intValue = Integer.parseInt(queryPlanCacheMaxSize);
-            if (intValue <= 0) {
-                logger.warn("Invalid queryPlanCacheMaxSize [hibernate.query.plan_cache_max_size] value: {}. Defaulting to {}.", queryPlanCacheMaxSize, defaultValue);
-                queryPlanCacheMaxSize = defaultValue;
+            T parsedValue = validator.parse(propertyValue);
+            if (!validator.isValid(parsedValue)) {
+                logger.warn("Invalid {} value: {}. Defaulting to {}.", propertyName, propertyValue, defaultValue);
+                return defaultValue;
             }
-        } catch (NumberFormatException e) {
-            logger.error("Incorrect queryPlanCacheMaxSize [hibernate.query.plan_cache_max_size] value: {}. Defaulting to {}.", queryPlanCacheMaxSize, defaultValue, e);
-            queryPlanCacheMaxSize = defaultValue;
-        }
-        return queryPlanCacheMaxSize;
-    }
-
-    /**
-     * This method retrieves the show_sql property from the database properties.
-     * If the value is invalid, it defaults to the provided defaultValue.
-     *
-     * @param dbProperties The database properties.
-     * @param defaultValue The default value to use if the retrieved value is invalid.
-     * @return The valid show_sql value.
-     */
-    private static String getShowSql(Properties dbProperties, String defaultValue) {
-        if (dbProperties == null) {
+            return String.valueOf(parsedValue);
+        } catch (Exception e) {
+            logger.error("Incorrect {} value: {}. Defaulting to {}.", propertyName, propertyValue, defaultValue, e);
             return defaultValue;
         }
-
-        // Get the showSql property from dbProperties
-        String showSql = dbProperties.getProperty("showSql", defaultValue);
-
-        if (!"true".equalsIgnoreCase(showSql) && !"false".equalsIgnoreCase(showSql)) {
-            logger.warn("Invalid showSql [hibernate.show_sql] value: {}. Defaulting to {}.", showSql, defaultValue);
-            showSql = defaultValue;
-        }
-        return showSql;
-    }
-
-    /**
-     * This method retrieves the in_clause_parameter_padding property from the database properties.
-     * If the value is invalid, it defaults to the provided defaultValue.
-     *
-     * @param dbProperties The database properties.
-     * @param defaultValue The default value to use if the retrieved value is invalid.
-     * @return The valid in_clause_parameter_padding value.
-     */
-    private static String getInClauseParameterPadding(Properties dbProperties, String defaultValue) {
-        if (dbProperties == null) {
-            return defaultValue;
-        }
-
-        // Get the inClauseParameterPadding property from dbProperties
-        String inClauseParameterPadding = dbProperties.getProperty("inClauseParameterPadding", defaultValue);
-
-        if (!"true".equalsIgnoreCase(inClauseParameterPadding) && !"false".equalsIgnoreCase(inClauseParameterPadding)) {
-            logger.warn("Invalid inClauseParameterPadding [hibernate.query.in_clause_parameter_padding] value : {}. Defaulting to {}.", inClauseParameterPadding, defaultValue);
-            inClauseParameterPadding = defaultValue;
-        }
-        return inClauseParameterPadding;
     }
 
     private static Metadata getMetadata(StandardServiceRegistry serviceRegistry, Set<Class<? extends E5State>> modelClasses) {
