@@ -1,31 +1,23 @@
 package e5.stateservice.service;
 
-import e5.stateservice.model.E5State;
 import e5.stateservice.model.E5DBServiceProperties;
+import e5.stateservice.model.E5State;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.Metadata;
 import org.hibernate.boot.MetadataSources;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.tool.schema.TargetType;
-import org.hibernate.tool.schema.spi.ContributableMatcher;
-import org.hibernate.tool.schema.spi.ExceptionHandler;
-import org.hibernate.tool.schema.spi.ExecutionOptions;
-import org.hibernate.tool.schema.spi.SchemaManagementTool;
-import org.hibernate.tool.schema.spi.ScriptTargetOutput;
-import org.hibernate.tool.schema.spi.TargetDescriptor;
+import org.hibernate.tool.schema.spi.*;
 import org.reflections.Reflections;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class E5DBServiceInitializer {
     private static final String GRADLE_SETTINGS_FILE_NAME = "settings.gradle";
@@ -36,6 +28,7 @@ public class E5DBServiceInitializer {
     public static final String JDBC_H2_URL = "jdbc:h2:mem:";
     public static final String POSTGRES_DIALECT = "org.hibernate.dialect.PostgreSQLDialect";
     public static final String H2_DIALECT = "org.hibernate.dialect.H2Dialect";
+    private static final Logger logger = LoggerFactory.getLogger(E5DBServiceInitializer.class);
 
     public  static SessionFactory buildSessionFactory(E5DBServiceProperties dbServiceProps,
                                                       boolean allowSchemaChanges,
@@ -49,10 +42,8 @@ public class E5DBServiceInitializer {
             settings.put("jakarta.persistence.schema-generation.database.action", "validate");
         }
 
-        settings.put("hibernate.hikari.minimumIdle","0");
-        settings.put("hibernate.hikari.idleTimeout","300000");
-        settings.put("hibernate.hikari.connectionTimeout","30000");
-        settings.put("hibernate.hikari.maximumPoolSize","5");
+        // apply custom Hibernate configuration
+        applyCustomHibernateConfig(settings, dbServiceProps.getDbProperties());
 
         if (isProd) {
             settings.put("hibernate.connection.driver_class", POSTGRES_DRIVER_CLASS);
@@ -68,7 +59,6 @@ public class E5DBServiceInitializer {
             settings.put("hibernate.default_schema", dbServiceProps.getSchemaName());
             settings.put("jakarta.persistence.schema-generation.database.action", "create-drop");
         }
-        settings.put("hibernate.show_sql", "false");
 
         var serviceRegistry = new StandardServiceRegistryBuilder()
                 .applySettings(settings).build();
@@ -86,6 +76,190 @@ public class E5DBServiceInitializer {
             System.exit(1);
         }
         return buildSessionFactory;
+    }
+
+    /**
+     * This method is used to apply custom Hibernate configuration.
+     * It reads the configuration from the .env file and applies it to the settings map.
+     *
+     * @param settings       The settings map to which the custom configuration will be applied.
+     * @param dbServiceProps The database service properties containing the configuration.
+     */
+    private static void applyCustomHibernateConfig(Map<String, Object> settings, Properties dbServiceProps) {
+        final String DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE = "1";
+        final String DEFAULT_SHOW_SQL = "false";
+        final String DEFAULT_IN_CLAUSE_PARAM_PADDING = "true";
+        final String DEFAULT_MINIMUM_IDLE = "0";
+        final String DEFAULT_IDLE_TIMEOUT = "300000";
+        final String DEFAULT_CONNECTION_TIMEOUT= "30000";
+        final String DEFAULT_MAXIMUM_POOL_SIZE = "5";
+
+        //Get queryPlanCacheMaxSize property from dbProperties
+        String queryPlanCacheMaxSize = getValidatedProperty(
+                dbServiceProps,
+                "queryPlanCacheMaxSize",
+                DEFAULT_QUERY_PLAN_CACHE_MAX_SIZE,
+                new Validator<Integer>() {
+                    @Override
+                    public Integer parse(String value) {
+                        return Integer.parseInt(value);
+                    }
+
+                    @Override
+                    public boolean isValid(Integer value) {
+                        return value > 0;
+                    }
+                }
+        );
+        settings.put("hibernate.query.plan_cache_max_size", queryPlanCacheMaxSize);
+
+        // Get showSql property from dbProperties
+        String showSql = getValidatedProperty(
+                dbServiceProps,
+                "showSql",
+                DEFAULT_SHOW_SQL,
+                new Validator<String>() {
+                    @Override
+                    public String parse(String value) {
+                        return value;
+                    }
+
+                    @Override
+                    public boolean isValid(String value) {
+                        return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
+                    }
+                }
+        );
+        settings.put("hibernate.show_sql", showSql);
+
+        // Get inClauseParameterPadding property from dbProperties
+        String inClauseParameterPadding = getValidatedProperty(
+                dbServiceProps,
+                "inClauseParameterPadding",
+                DEFAULT_IN_CLAUSE_PARAM_PADDING,
+                new Validator<String>() {
+                    @Override
+                    public String parse(String value) {
+                        return value;
+                    }
+
+                    @Override
+                    public boolean isValid(String value) {
+                        return "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value);
+                    }
+                }
+        );
+        settings.put("hibernate.query.in_clause_parameter_padding", inClauseParameterPadding);
+
+        // Get minimumIdle property from dbProperties
+        String minimumIdle = getValidatedProperty(
+                dbServiceProps,
+                "minimumIdle",
+                DEFAULT_MINIMUM_IDLE,
+                new Validator<Integer>() {
+                    @Override
+                    public Integer parse(String value) {
+                        return Integer.parseInt(value);
+                    }
+
+                    @Override
+                    public boolean isValid(Integer value) {
+                        return value >= 0;
+                    }
+                }
+        );
+        settings.put("hibernate.hikari.minimumIdle", minimumIdle);
+
+        // Get idleTimeout property from dbProperties
+        String idleTimeout = getValidatedProperty(
+                dbServiceProps,
+                "idleTimeout",
+                DEFAULT_IDLE_TIMEOUT,
+                new Validator<Long>() {
+                    @Override
+                    public Long parse(String value) {
+                        return Long.parseLong(value);
+                    }
+
+                    @Override
+                    public boolean isValid(Long value) {
+                        return value >= 0;
+                    }
+                }
+        );
+        settings.put("hibernate.hikari.idleTimeout", idleTimeout);
+
+        // Get connectionTimeout property from dbProperties
+        String connectionTimeout = getValidatedProperty(
+                dbServiceProps,
+                "connectionTimeout",
+                DEFAULT_CONNECTION_TIMEOUT,
+                new Validator<Long>() {
+                    @Override
+                    public Long parse(String value) {
+                        return Long.parseLong(value);
+                    }
+
+                    @Override
+                    public boolean isValid(Long value) {
+                        return value >= 0;
+                    }
+                }
+        );
+        settings.put("hibernate.hikari.connectionTimeout", connectionTimeout);
+
+        // Get maximumPoolSize property from dbProperties
+        String maximumPoolSize = getValidatedProperty(
+                dbServiceProps,
+                "maximumPoolSize",
+                DEFAULT_MAXIMUM_POOL_SIZE,
+                new Validator<Integer>() {
+                    @Override
+                    public Integer parse(String value) {
+                        return Integer.parseInt(value);
+                    }
+
+                    @Override
+                    public boolean isValid(Integer value) {
+                        return value > 0;
+                    }
+                }
+        );
+        settings.put("hibernate.hikari.maximumPoolSize", maximumPoolSize);
+
+        logger.info("Custom Hibernate configuration applied: [hibernate.query.plan_cache_max_size]={}, [hibernate.show_sql]={}, " +
+                        "[hibernate.query.in_clause_parameter_padding]={}, [hibernate.hikari.minimumIdle]={}, [hibernate.hikari.idleTimeout]={}, " +
+                        "[hibernate.hikari.connectionTimeout]={}, [hibernate.hikari.maximumPoolSize]={}", queryPlanCacheMaxSize, showSql,
+                inClauseParameterPadding, minimumIdle, idleTimeout, connectionTimeout, maximumPoolSize);
+
+    }
+
+    /**
+     * This method retrieves a property from the database properties, validates it, and applies a default value if necessary.
+     *
+     * @param dbProperties The database properties.
+     * @param propertyName The name of the property to retrieve.
+     * @param defaultValue The default value to use if the retrieved value is invalid.
+     * @param validator    A functional interface to validate the property value.
+     * @param <T>          The type of the property value.
+     * @return The valid property value.
+     */
+    private static <T> String getValidatedProperty(Properties dbProperties, String propertyName, String defaultValue, Validator<T> validator) {
+        if (dbProperties == null) {
+            return defaultValue;
+        }
+        String propertyValue = dbProperties.getProperty(propertyName, defaultValue.toString());
+        try {
+            T parsedValue = validator.parse(propertyValue);
+            if (!validator.isValid(parsedValue)) {
+                logger.warn("Invalid {} value: {}. Defaulting to {}.", propertyName, propertyValue, defaultValue);
+                return defaultValue;
+            }
+            return String.valueOf(parsedValue);
+        } catch (Exception e) {
+            logger.error("Incorrect {} value: {}. Defaulting to {}.", propertyName, propertyValue, defaultValue, e);
+            return defaultValue;
+        }
     }
 
     private static Metadata getMetadata(StandardServiceRegistry serviceRegistry, Set<Class<? extends E5State>> modelClasses) {

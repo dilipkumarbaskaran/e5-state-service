@@ -63,6 +63,8 @@ ext {
 }
 
 dependencies {
+
+    implementation 'ch.qos.logback:logback-classic:1.2.5'
     implementation("org.postgresql:postgresql:${postgresVersion}")
     implementation("org.hibernate:hibernate-core:${hibernateCoreVersion}")
     implementation("org.hibernate.orm:hibernate-community-dialects:${hibernateCoreVersion}")

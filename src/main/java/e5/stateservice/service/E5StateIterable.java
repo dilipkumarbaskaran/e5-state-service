@@ -8,10 +8,13 @@ import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
 import org.hibernate.query.Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class E5StateIterable<T extends E5State> {
     @Getter
@@ -23,6 +26,7 @@ public final class E5StateIterable<T extends E5State> {
     private int limit = -1;
     private int skip = 0;
     private int batchSize = 50; // not used in initial release
+    private static final Logger logger = LoggerFactory.getLogger(E5StateIterable.class);
 
     public E5StateIterable(Class<T> entityClass, SessionFactory sessionFactory) {
         this.entityClass = entityClass;
@@ -133,9 +137,10 @@ public final class E5StateIterable<T extends E5State> {
 
     private Query createQuery(Session session) {
         StringBuilder hql = new StringBuilder("FROM " + entityClass.getName());
-
+        // Initialize a counter to differentiate field values
+        AtomicInteger counter = new AtomicInteger(0);
         if (filterOptions != null) {
-            hql.append(" WHERE ").append(filterOptions.toHql());
+            hql.append(" WHERE ").append(filterOptions.toHql(counter));
         }
 
         if (sortFieldList != null  && !sortFieldList.isEmpty()){
@@ -146,6 +151,7 @@ public final class E5StateIterable<T extends E5State> {
             hql.delete(hql.length()-2, hql.length());
         }
 
+        logger.debug("Constructed HQL Query String: " + hql.toString());
         Query<T> query = session.createQuery(hql.toString(), entityClass);
         if (filterOptions != null) {
             filterOptions.setParameters(query);
