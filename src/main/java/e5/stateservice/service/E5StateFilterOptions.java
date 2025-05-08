@@ -7,7 +7,7 @@ import org.hibernate.query.Query;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Data
 public final class E5StateFilterOptions<T extends E5State> {
@@ -65,6 +65,44 @@ public final class E5StateFilterOptions<T extends E5State> {
         return this;
     }
 
+    /**
+     * Adding IN Filter to the field and values
+     * @param field - to which IN filter has to be applied
+     * @param values - list of values to be included in the filter
+     * @return E5StateFilterOptions instance for the entityClass Object with filter added
+     * @param <F>
+     */
+    public <F> E5StateFilterOptions<T> in(E5SearchField<T, F> field, List<F> values) {
+        if (field == null || field.getName() == null || field.getName().isEmpty()) {
+            throw new IllegalArgumentException("Field cannot be null or empty for IN condition.");
+        }
+        if (values == null || values.isEmpty()) {
+            throw new IllegalArgumentException("Values cannot be null or empty for IN condition on the field: " + field.getName() + " with values: " + values);
+        }
+
+        criterias.add(new E5StateFilterCriterion(field.getName(), values, " IN "));
+        return this;
+    }
+
+    /**
+     * Adding NOT IN Filter to the field and values
+     * @param field - to which NOT IN filter has to be applied
+     * @param values - list of values to be excluded in the filter
+     * @return E5StateFilterOptions instance for the entityClass Object with filter added
+     * @param <F>
+     */
+    public <F> E5StateFilterOptions<T> nin(E5SearchField<T, F> field, List<F> values) {
+        if (field == null || field.getName() == null || field.getName().isEmpty()) {
+            throw new IllegalArgumentException("Field cannot be null or empty for NOT IN condition.");
+        }
+        if (values == null || values.isEmpty()) {
+            throw new IllegalArgumentException("Values cannot be null or empty for a NOT IN condition on the field: " + field.getName() + " with values: " + values);
+        }
+
+        criterias.add(new E5StateFilterCriterion(field.getName(), values, " NOT IN "));
+        return this;
+    }
+
     public E5StateFilterOptions<T> clone() {
         E5StateFilterOptions<T> copyObject = new E5StateFilterOptions<>(entityClass);
         for (E5StateFilterCriterion criteria : criterias) {
@@ -87,14 +125,14 @@ public final class E5StateFilterOptions<T extends E5State> {
         return this;
     }
 
-    public String toHql() {
+    public String toHql(AtomicInteger counter) {
         StringBuilder hql = new StringBuilder();
         hql.append(" (");
         if (!criterias.isEmpty()) {
             //hql.append(" WHERE ");
             for (E5StateFilterCriterion criterion : criterias) {
-                String randomUUID = UUID.randomUUID().toString().replace("-","");
-                String modifiedFieldName = criterion.getField() + randomUUID;
+                // Generate a unique parameter name for each criterion
+                String modifiedFieldName = criterion.getField() + "_" + counter.incrementAndGet();
                 criterion.setFieldParamName(modifiedFieldName);
                 hql.append(criterion.getField()).append(criterion.getOperator()).append(":").append(criterion.getFieldParamName()).append(" AND ");
             }
@@ -112,7 +150,7 @@ public final class E5StateFilterOptions<T extends E5State> {
             }*/
 
             for (E5StateFilterOptions<T> filter : group.getFilters()) {
-                hql.append(filter.toHql()).append(" ").append(group.getOperator()).append(" ");
+                hql.append(filter.toHql(counter)).append(" ").append(group.getOperator()).append(" ");
             }
             hql.delete(hql.length() - (" " + group.getOperator() + " ").length(), hql.length()); // Remove last " AND "
             hql.append(")").append(" AND ");

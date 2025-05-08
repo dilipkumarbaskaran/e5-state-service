@@ -18,7 +18,7 @@ plugins {
 }
 
 group = 'e5.state'
-version = '1.0'
+version = '1.1.0'
 
 
 repositories {
@@ -63,6 +63,8 @@ ext {
 }
 
 dependencies {
+
+    implementation 'ch.qos.logback:logback-classic:1.2.5'
     implementation("org.postgresql:postgresql:${postgresVersion}")
     implementation("org.hibernate:hibernate-core:${hibernateCoreVersion}")
     implementation("org.hibernate.orm:hibernate-community-dialects:${hibernateCoreVersion}")
@@ -70,6 +72,7 @@ dependencies {
     implementation("javax.persistence:javax.persistence-api:${persistenceVersion}")
     implementation("org.reflections:reflections:${reflectionsVersion}")
     implementation 'com.h2database:h2:2.1.214'
+    implementation 'org.hibernate:hibernate-hikaricp:6.6.8.Final'
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:${junitJupiterVersion}")
     testImplementation("org.junit.jupiter:junit-jupiter-engine:${junitJupiterVersion}")

@@ -27,14 +27,25 @@ public class Users extends E5State {
     public Long id;
     @Transient
     public final static E5SearchField<Users, Long> ID = new E5SearchField<Users,Long>() {
-
-
         public String getName() {
             return "id";
         }
+    };
 
-    }
-            ;
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "name", column = @Column(name = "name", insertable = false, updatable = false)),
+            @AttributeOverride(name = "email", column = @Column(name = "email", insertable = false, updatable = false))
+    })
+    private NameEmailFilter nameEmail;
+
+    @Transient
+    public final static E5SearchField<Users, NameEmailFilter> NAMEEMAIL = new E5SearchField<Users,NameEmailFilter>() {
+        public String getName() {
+            return "nameEmail";
+        }
+    };
+
     @Column(name = "email", unique = true, length = 255)
     public String email;
     @Transient
