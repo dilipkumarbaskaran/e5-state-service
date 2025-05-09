@@ -48,6 +48,9 @@ public class Users extends E5State {
 
     @Column(name = "email", unique = true, length = 255)
     public String email;
+    @Lob
+    @Column(name = "description", length = 255)
+    public String description;
     @Transient
     public final static E5SearchField<Users, String> EMAIL = new E5SearchField<Users,String>() {
 
