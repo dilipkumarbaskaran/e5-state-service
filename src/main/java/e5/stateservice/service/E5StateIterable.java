@@ -92,7 +92,10 @@ public final class E5StateIterable<T extends E5State> {
      */
     public E5StateCursor<T> iterator() {
         Session session = sessionFactory.openSession();
-        return new E5StateCursor<>(entityClass, session, this.createQuery(session), batchSize);
+        Transaction iteratorTransaction = session.beginTransaction();
+        E5StateCursor iteratorStateCursor = new E5StateCursor<>(entityClass, session, this.createQuery(session), batchSize);
+        iteratorTransaction.commit();
+        return iteratorStateCursor;
     }
 
     /**
@@ -101,8 +104,10 @@ public final class E5StateIterable<T extends E5State> {
      */
     public List<T> list() {
         Session session = sessionFactory.openSession();
+        Transaction listingTransaction = session.beginTransaction();
         E5StateCursor<T> e5StateCursor = new E5StateCursor<>(entityClass, session, this.createQuery(session), batchSize);
         List<T> recordList = e5StateCursor.list();
+        listingTransaction.commit();
         e5StateCursor.close();
         return recordList;
     }

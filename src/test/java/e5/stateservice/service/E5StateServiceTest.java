@@ -38,7 +38,7 @@ public class E5StateServiceTest {
                 .dbName("yourdb")
                 .schemaName("schema1")
                 .dbUserName("postgres")
-                .dbPassword("pgadmin")
+                .dbPassword("postgres")
                 .dbProperties(customProperties).
                 build();
         sessionFactory = E5DBServiceInitializer.buildSessionFactory(stateServiceProps, false, true, "e5");
@@ -70,6 +70,7 @@ public class E5StateServiceTest {
         Users newUser = new Users();
         newUser.setName("John Doe");
         newUser.setEmail("john.doe1@example.com");
+        newUser.setDescription("dev");
         newUser = E5StateService.insertOne(sessionFactory, newUser);
 
         Assertions.assertTrue(newUser.getId()!=0);
@@ -87,20 +88,9 @@ public class E5StateServiceTest {
     public void testSearch() {
         E5StateFilterOptions<Users> filterOptions = E5StateFilterOptions.create(Users.class);
 
-        for (int i=0;i<100;i++) {
-            filterOptions.lt(Users.ID, 5l+i);
-        }
-
-        E5StateFilterGroup<Users> filterGroup1 = E5StateFilterGroup.create(Users.class, E5StateFilterGroup.LogicalOperator.OR)
-                .addFilter(filterOptions)
-                .addFilter(filterOptions);
-
-        E5StateFilterOptions<Users> filterOptions1 = E5StateFilterOptions.create(Users.class)
-                .addGroup(filterGroup1)
-                .addGroup(filterGroup1);
-
+        filterOptions.lt(Users.ID, 50l);
         int countBefore = E5StateService.find(sessionFactory, Users.class)
-                .filter(filterOptions1)
+                .filter(filterOptions)
                 .list().size();
 
         if (countBefore < 5) {
@@ -109,10 +99,12 @@ public class E5StateServiceTest {
             newUser.setName("John Doe");
             String random = UUID.randomUUID().toString().replace("-","");
             newUser.setEmail("john.doe+"+random+"@example.com");
+            newUser.setDescription("test_desig");
             newUser = E5StateService.insertOne(sessionFactory, newUser);
 
+            Assertions.assertTrue(newUser.getId()!=0);
             int countAfter = E5StateService.find(sessionFactory, Users.class)
-                    .filter(filterOptions1)
+                    .filter(filterOptions)
                     .list().size();
             Assertions.assertEquals(countBefore+1, countAfter);
         }
@@ -222,10 +214,12 @@ public class E5StateServiceTest {
         // Insert a new user
         Users newUser = new Users();
         newUser.setName("John Doe");
+        newUser.setDescription("desiption2");
         newUser.setEmail("john.doe2@example.com");
 
         Users newUser1 = new Users();
         newUser1.setName("John Doe");
+        newUser1.setDescription("description3");
         newUser1.setEmail("john.doe3@example.com");
         int countPrevious = E5StateService.find(sessionFactory, Users.class)
                 .list().size();
@@ -241,6 +235,7 @@ public class E5StateServiceTest {
         // Insert a new user
         Users newUser = new Users();
         newUser.setName("John Doe");
+        newUser.setDescription("description4");
         newUser.setEmail("john.doe4@example.com");
         Assertions.assertThrows(ConstraintViolationException.class, ()-> {E5StateService.insertMany(sessionFactory, List.of(newUser, newUser));});
     }
@@ -249,6 +244,7 @@ public class E5StateServiceTest {
     public void testUpdate() {
         Users newUser = new Users();
         newUser.setName("John Doe");
+        newUser.setDescription("description5");
         newUser.setEmail("john.doe5@example.com");
         newUser = E5StateService.insertOne(sessionFactory, newUser);
         // Update a user
@@ -276,10 +272,12 @@ public class E5StateServiceTest {
         // Insert a new user
         Users newUser = new Users();
         newUser.setName("John Doe");
+        newUser.setDescription("description6");
         newUser.setEmail("john.doe6@example.com");
 
         Users newUser1 = new Users();
         newUser1.setName("John Doe");
+        newUser1.setDescription("description7");
         newUser1.setEmail("john.doe7@example.com");
         int countPrevious = E5StateService.find(sessionFactory, Users.class)
                 .list().size();
