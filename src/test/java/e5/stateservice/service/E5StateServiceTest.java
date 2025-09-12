@@ -2,19 +2,26 @@ package e5.stateservice.service;
 
 import e5.stateservice.model.E5DBServiceProperties;
 import e5.stateservice.model.E5SearchField;
+import e5.stateservice.model.E5State;
 import e5.stateservice.model.state.NameEmailFilter;
 import e5.stateservice.model.state.Users;
+import org.hibernate.Session;
 import org.hibernate.SessionFactory;
+import org.hibernate.Transaction;
 import org.hibernate.exception.ConstraintViolationException;
+import org.hibernate.exception.GenericJDBCException;
 import org.junit.jupiter.api.Assertions;
+import org.postgresql.util.PSQLException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
@@ -35,10 +42,10 @@ public class E5StateServiceTest {
 
         E5DBServiceProperties stateServiceProps = E5DBServiceProperties.builder()
                 .endpoint("localhost:5432")
-                .dbName("yourdb")
-                .schemaName("schema1")
+                .dbName("postgres")
+                .schemaName("public")
                 .dbUserName("postgres")
-                .dbPassword("pgadmin")
+                .dbPassword("postgres@001")
                 .dbProperties(customProperties).
                 build();
         sessionFactory = E5DBServiceInitializer.buildSessionFactory(stateServiceProps, false, true, "e5");
@@ -359,5 +366,83 @@ public class E5StateServiceTest {
             Assertions.assertEquals(countBefore - 1, countAfter);
         }
 
+    }
+
+    @Test
+    public void testInsertWithRestriction(){
+        Users newUser = new Users();
+        newUser.setName("John Doe");
+        newUser.setEmail("john.doe1@example.com");
+        
+        GenericJDBCException exception = Assertions.assertThrows(GenericJDBCException.class, () -> {
+            insertOne(sessionFactory, newUser);
+        });
+        
+        // Verify that the underlying cause is the PostgreSQL restriction error
+        Assertions.assertInstanceOf(PSQLException.class, exception.getCause());
+        Assertions.assertTrue(exception.getCause().getMessage().contains("Access Restricted by workflow"));
+    }
+
+    @Test
+    public void testUpdateWithRestriction(){
+        Users newUser = new Users();
+        newUser.setName("John Doe99");
+        newUser.setEmail("john.doe.99@example.com");
+        newUser = E5StateService.insertOne(sessionFactory, newUser);
+        try (var cursor = E5StateService.find(sessionFactory, Users.class).iterator()) {
+            Users userToUpdate;
+            while (cursor.hasNext()) {
+                userToUpdate = (Users) cursor.next();
+                userToUpdate.setEmail("john.doe_" + userToUpdate.getId() + "1111@example.com");
+                Users finalUserToUpdate = userToUpdate;
+                GenericJDBCException exception = Assertions.assertThrows(GenericJDBCException.class, () -> {
+                    updateOne(sessionFactory, finalUserToUpdate);
+                });
+                Assertions.assertInstanceOf(PSQLException.class, exception.getCause());
+                Assertions.assertTrue(exception.getCause().getMessage().contains("Access Restriced by workflow"));
+            }
+        }
+    }
+
+    public static <T extends E5State> T updateOne(SessionFactory sessionFactory, T entity) {
+        executeInsideTransaction(session -> {
+            session.update(entity);
+        }, sessionFactory);
+        return entity;
+    }
+    public static <T extends E5State> T insertOne(SessionFactory sessionFactory, T entity) {
+        executeInsideTransaction(session -> {
+            session.save(entity);
+        }, sessionFactory);
+        return entity;
+    }
+    private static void executeInsideTransaction(Consumer<Session> action, SessionFactory sessionFactory) {
+        Transaction transaction = null;
+        try (Session session = sessionFactory.openSession()) {
+            transaction = session.beginTransaction();
+            setAllowRestricted(session, false);
+            action.accept(session);
+            transaction.commit();
+        } catch (RuntimeException e) {
+            if (transaction != null) {
+                if (transaction != null && transaction.isActive()) {
+                    try {
+                        transaction.rollback();
+                    } catch(Exception ex) {
+                        //don't do anything
+                    }
+                }
+            }
+            throw e;
+        }
+    }
+    private static void setAllowRestricted(Session session, boolean allowRestricted){
+        session.doWork(connection -> {
+            try(var stmt = connection.createStatement()){
+                stmt.execute("SET LOCAL app_context.allow_restricted = '" + (allowRestricted ? "true" : "false") + "'");
+            } catch (SQLException e) {
+                throw new SQLException("Error occurred in changing configuration parameter in postgres: "+e);
+            }
+        });
     }
 }
