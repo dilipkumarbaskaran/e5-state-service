@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
@@ -81,32 +82,6 @@ public class E5DBServiceInitializer {
             System.exit(1);
         }
         return buildSessionFactory;
-    }
-
-    public static void setupGuardrails(String schemaName, SessionFactory buildSessionFactory) {
-        try (InputStream inputStream = E5DBServiceInitializer.class.getClassLoader()
-                .getResourceAsStream("externally-non-editable-fields.json")) {
-            if (inputStream == null) {
-                throw new RuntimeException("File not found in resources!");
-            }
-            ObjectMapper mapper = new ObjectMapper();
-            // Convert JSON into Map<String, List<String>>
-            Map<String, List<String>> editableFields =
-                    mapper.readValue(inputStream, new TypeReference<>() {
-                    });
-            if (editableFields.isEmpty()) {
-                logger.info("None of the Schemas has guardrails set");
-            } else {
-                for (Map.Entry<String, List<String>> entry : editableFields.entrySet()) {
-                    String key = entry.getKey();
-                    List<String> value = entry.getValue();
-                    logger.info("Processing table: {} with non-editable columns: {}", key, value);
-                    buildTriggers(value, key, schemaName, buildSessionFactory);
-                }
-            }
-        } catch (Exception e) {
-            logger.error("externally-non-editable-fields.json does not exist", e);
-        }
     }
 
     /**
@@ -385,21 +360,149 @@ public class E5DBServiceInitializer {
         return true;
     }
 
-    protected static String getAppName() {
-        String settingsFilePath = GRADLE_SETTINGS_FILE_NAME;
-        try (FileReader fileReader = new FileReader(settingsFilePath); BufferedReader bufferedReader = new BufferedReader(fileReader)) {
-            String line;
-            while ((line = bufferedReader.readLine()) != null) {
-                if (line.trim().startsWith(ROOT_PROJECT_NAME)) {
-                    return line.trim().split("=")[1].replace("'", "").trim().replaceAll("[^A-Za-z0-9]", "").toLowerCase();
-                }
+
+    /**
+     * Sets up database guardrails (triggers) to restrict updates or inserts on specified columns for certain tables.
+     * <p>
+     * This method reads a configuration file named <b>externally-non-editable-fields.json</b> from the resources directory,
+     * which defines, for each table, a list of columns that should be protected from external modification.
+     * For each table and its non-editable columns, this method creates or updates database triggers to enforce these restrictions.
+     * If the configuration is empty, it checks for and removes any unnecessary guardrails that may already exist in the database.
+     * <p>
+     * The method performs the following steps:
+     * <ol>
+     *   <li>Loads the JSON configuration file from the classpath.</li>
+     *   <li>Parses the file into a map of table names to lists of non-editable column names.</li>
+     *   <li>If the configuration is empty, removes any existing guardrails from the database schema.</li>
+     *   <li>Otherwise, removes unnecessary guardrails and sets up new triggers for each table/column as specified.</li>
+     *   <li>Logs progress and errors throughout the process.</li>
+     * </ol>
+     *
+     * @param schemaName         The name of the database schema where guardrails (triggers) should be managed.
+     * @param buildSessionFactory The Hibernate {@link SessionFactory} used to interact with the database.
+     *
+     *
+     */
+    public static void setupGuardrails(String schemaName, SessionFactory buildSessionFactory) {
+        try (InputStream inputStream = E5DBServiceInitializer.class.getClassLoader()
+                .getResourceAsStream("externally-non-editable-fields.json")) {
+            if (inputStream == null) {
+                throw new FileNotFoundException("File not found in resources!");
             }
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
+            ObjectMapper mapper = new ObjectMapper();
+            // Convert JSON into Map<String, List<String>>
+            Map<String, List<String>> editableFields =
+                    mapper.readValue(inputStream, new TypeReference<>() {
+                    });
+            if (editableFields.isEmpty()) {
+                logger.info("No details to setup guardrails, checking for unnecessary guardrails if already present in DB!!!");
+                removeUnnecessaryGuardrails(editableFields, buildSessionFactory, schemaName);
+            } else {
+
+                logger.info("Setting up guardrails for the following tables: {}", editableFields.keySet());
+                for (Map.Entry<String, List<String>> entry : editableFields.entrySet()) {
+                    String key = entry.getKey();
+                    List<String> value = entry.getValue();
+                    logger.info("Processing table: {} with non-editable columns: {}", key, value);
+                    buildTriggers(value, key, schemaName, buildSessionFactory);
+                }
+                logger.info("Setting up guardrails Complete. Now checking for unnecessary guardrails if already present!!!");
+                removeUnnecessaryGuardrails(editableFields, buildSessionFactory, schemaName);
+            }
+        } catch (FileNotFoundException e){
+            logger.error("externally-non-editable-fields.json does not exist", e);
+        }
+        catch (Exception e) {
+            logger.error("Exception occurred while setting up guardrails", e);
+            throw new RuntimeException("Exception occurred while setting up guardrails", e);
+        }
+    }
+
+    /**
+     * Removes unnecessary guardrails (triggers) from the database schema.
+     * <p>
+     * This method compares the set of tables that currently have guardrail triggers in the database
+     * with the set of tables defined in the provided schema. If any tables have triggers
+     * but are not present in the schema, their triggers are removed.
+     * <ul>
+     *   <li>Fetches all tables with triggers in the given schema.</li>
+     *   <li>Identifies tables that no longer require guardrails by comparing with editableFields.</li>
+     *   <li>Drops triggers for those tables to keep the schema clean and up-to-date.</li>
+     * </ul>
+     *
+     * @param editableFields         Map of table names to their editable fields, as defined in the guardrails config.
+     * @param buildSessionFactory    The Hibernate SessionFactory to use for DB access.
+     * @param schemaName             The name of the schema to operate on.
+     * @author vishal-e5
+     * @date 2024-06-09
+     */
+    private static void removeUnnecessaryGuardrails(Map<String, List<String>> editableFields, SessionFactory buildSessionFactory, String schemaName) {
+        List<String> newTablesWithGuardrails = editableFields.keySet().stream().toList();
+        try(Session session = buildSessionFactory.openSession()){
+
+            session.doWork(connection -> {
+
+                List<String> tablesToRemoveGuardrails;
+                String fetchTriggerQuery = """
+                    SELECT DISTINCT event_object_table AS table_name
+                    FROM information_schema.triggers
+                    WHERE trigger_schema = '%s';
+                    """.formatted(schemaName);
+                try (PreparedStatement statement = connection.prepareStatement(fetchTriggerQuery)) {
+
+                    List<String> currentTablesWithGuardrails = new ArrayList<>();
+                    ResultSet rs = statement.executeQuery();
+                    while (rs.next()) {
+                        String tableName = rs.getString("table_name");
+                        if (tableName != null && !tableName.isEmpty()) {
+                            currentTablesWithGuardrails.add(tableName);
+                        }
+                    }
+                    // Find tables that are in currentTablesWithGuardrails but not in newTablesWithGuardrails using Java streams
+                    tablesToRemoveGuardrails = currentTablesWithGuardrails.stream()
+                            .filter(table -> !newTablesWithGuardrails.contains(table))
+                            .toList();
+
+                } catch (SQLException e) {
+                    logger.error("Failed to fetch trigger");
+                    throw new RuntimeException("Error while fetching triggers for deletion: " + e.getMessage(), e);
+                }
+                if (tablesToRemoveGuardrails.isEmpty()) {
+                    logger.info("No unnecessary guardrails needs to be deleted");
+                } else {
+                    logger.info("Tables for which triggers should be to removed, since they are not defined in the schema: {}", tablesToRemoveGuardrails);
+                    String tablesToRemoveGuardrailsStr = tablesToRemoveGuardrails.stream()
+                            .map(table -> "'" + table.replace("'", "''") + "'")
+                            .collect(java.util.stream.Collectors.joining(","));
+                    String deleteUnnecessaryTriggers = """
+                                DO $$
+                                DECLARE
+                                    trigger_rec RECORD;
+                                BEGIN
+                                    FOR trigger_rec IN (
+                                        SELECT trigger_name, event_object_table
+                                        FROM information_schema.triggers
+                                        WHERE event_object_table IN (%s) -- Replace with your table names
+                                    )
+                                    LOOP
+                                        EXECUTE 'DROP TRIGGER IF EXISTS ' || quote_ident(trigger_rec.trigger_name) || ' ON ' || quote_ident(trigger_rec.event_object_table) || ';';
+                                    END LOOP;
+                                END $$;
+                                """.formatted(tablesToRemoveGuardrailsStr);
+
+                    try (PreparedStatement statement = connection.prepareStatement(deleteUnnecessaryTriggers)) {
+                        statement.executeQuery();
+                        logger.info("Triggers are deleted for Tables for which guardrails were not specified {}", tablesToRemoveGuardrails);
+                    } catch (SQLException e) {
+                        logger.error("Failed to delete unnecessary trigger");
+                        throw new RuntimeException("Failed to delete unnecessary trigger: " + e.getMessage(), e);
+                    }
+                }
+            });
+
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        return "";
     }
 
     /**
@@ -409,11 +512,11 @@ public class E5DBServiceInitializer {
      * This method will add triggers to the table schema. It takes as input a list of entity table names.
      * </p>
      *
-     * @param tableColumnName a list of entity table names to which triggers will be added
+     * @param tableColumnNames a list of entity table names to which triggers will be added
      * @param tableName       the name of the class to which the triggers will be added
      * @param sessionFactory
      */
-    public static void buildTriggers(List<String> tableColumnName, String tableName, String schemaName, SessionFactory sessionFactory) {
+    public static void buildTriggers(List<String> tableColumnNames, String tableName, String schemaName, SessionFactory sessionFactory) {
         String functionName = tableName + "_trigger_function";
         logger.info("Creating trigger function for table {} -> {}", tableName, functionName);
         String triggerSql = String.format("""
@@ -427,7 +530,7 @@ public class E5DBServiceInitializer {
                         ELSIF TG_OP = 'UPDATE' THEN
                             -- Check if restricted columns are being changed
                 """
-                + buildUpdateTriggerCondition(tableColumnName)
+                + buildUpdateTriggerCondition(tableColumnNames)
                 + """
                                 RAISE EXCEPTION 'Cannot update person_id, person_name, or person_nationality. Access Restriced by workflow.';
                             END IF;
@@ -459,9 +562,11 @@ public class E5DBServiceInitializer {
                 session.close();
             }
         }
-        createOrManageTrigger(tableName, schemaName, functionName, sessionFactory);
+        createOrManageTrigger(tableName, functionName, sessionFactory);
 
     }
+
+
 
     private static String buildUpdateTriggerCondition(List<String> tableColumnName) {
         StringBuilder conditionBuilder = new StringBuilder();
@@ -481,13 +586,11 @@ public class E5DBServiceInitializer {
     }
 
 
-    private static void createOrManageTrigger(String tableName, String schemaName, String functionName, SessionFactory sessionfactory) {
+    private static void createOrManageTrigger(String tableName, String functionName, SessionFactory sessionfactory) {
         logger.info("Attaching trigger function {} to table {}", functionName, tableName);
         String triggerName = tableName + "_trigger";
         try (Session session = sessionfactory.openSession()) {
             session.doWork(connection -> {
-
-
                 String createTriggerSql = String.format(
                         "CREATE OR REPLACE  TRIGGER %s BEFORE UPDATE ON %s FOR EACH ROW EXECUTE FUNCTION %s();",
                         triggerName, tableName, functionName
@@ -502,7 +605,8 @@ public class E5DBServiceInitializer {
                 }
             });
         } catch (HibernateException e) {
-            throw new RuntimeException(e);
+            logger.info("Error while creating trigger", e);
+            throw new RuntimeException("Error while creating trigger", e);
         }
     }
 }
