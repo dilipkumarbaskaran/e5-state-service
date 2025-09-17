@@ -5,6 +5,7 @@ import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -70,6 +71,7 @@ public final class E5StateService {
         Transaction transaction = null;
         try (Session session = sessionFactory.openSession()) {
             transaction = session.beginTransaction();
+            setAllowRestricted(session, true);
             action.accept(session);
             transaction.commit();
         } catch (RuntimeException e) {
@@ -84,5 +86,15 @@ public final class E5StateService {
             }
             throw e;
         }
+    }
+
+    private static void setAllowRestricted(Session session, boolean allowRestricted){
+        session.doWork(connection -> {
+            try(var stmt = connection.createStatement()){
+                stmt.execute("SET LOCAL app_context.allow_restricted = '" + (allowRestricted ? "true" : "false") + "'");
+            } catch (SQLException e) {
+                throw new SQLException("Error occurred in changing configuration parameter in postgres: "+e);
+            }
+        });
     }
 }
