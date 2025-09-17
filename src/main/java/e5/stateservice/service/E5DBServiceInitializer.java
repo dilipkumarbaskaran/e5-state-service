@@ -1,7 +1,11 @@
 package e5.stateservice.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import e5.stateservice.model.E5DBServiceProperties;
 import e5.stateservice.model.E5State;
+import org.hibernate.HibernateException;
+import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.Metadata;
 import org.hibernate.boot.MetadataSources;
@@ -13,10 +17,9 @@ import org.reflections.Reflections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.*;
 
 public class E5DBServiceInitializer {
@@ -30,10 +33,10 @@ public class E5DBServiceInitializer {
     public static final String H2_DIALECT = "org.hibernate.dialect.H2Dialect";
     private static final Logger logger = LoggerFactory.getLogger(E5DBServiceInitializer.class);
 
-    public  static SessionFactory buildSessionFactory(E5DBServiceProperties dbServiceProps,
-                                                      boolean allowSchemaChanges,
-                                                      boolean isProd,
-                                                      String packagePrefixToConsider) {
+    public static SessionFactory buildSessionFactory(E5DBServiceProperties dbServiceProps,
+                                                     boolean allowSchemaChanges,
+                                                     boolean isProd,
+                                                     String packagePrefixToConsider) {
         Map<String, Object> settings = new HashMap<>();
         // Set properties
         if (allowSchemaChanges) {
@@ -55,7 +58,7 @@ public class E5DBServiceInitializer {
 
         } else {
             settings.put("hibernate.connection.driver_class", H2_DRIVER_CLASS);
-            settings.put("hibernate.connection.url",JDBC_H2_URL + dbServiceProps.getDbName() + ";INIT=CREATE SCHEMA IF NOT EXISTS " + dbServiceProps.getSchemaName() + ";");
+            settings.put("hibernate.connection.url", JDBC_H2_URL + dbServiceProps.getDbName() + ";INIT=CREATE SCHEMA IF NOT EXISTS " + dbServiceProps.getSchemaName() + ";");
             settings.put("hibernate.default_schema", dbServiceProps.getSchemaName());
             settings.put("jakarta.persistence.schema-generation.database.action", "create-drop");
         }
@@ -64,10 +67,12 @@ public class E5DBServiceInitializer {
                 .applySettings(settings).build();
         Reflections reflections = new Reflections(packagePrefixToConsider);
         Set<Class<? extends E5State>> modelClasses = reflections.getSubTypesOf(E5State.class);
-       SessionFactory buildSessionFactory = null;
+        SessionFactory buildSessionFactory = null;
         try {
             if (allowSchemaChanges || canMakeSchemaChanges(settings, serviceRegistry, modelClasses)) {
-                 buildSessionFactory = getMetadata(serviceRegistry, modelClasses).buildSessionFactory();
+                buildSessionFactory = getMetadata(serviceRegistry, modelClasses).buildSessionFactory();
+
+                setupGuardrails(dbServiceProps.getSchemaName(), buildSessionFactory);
             } else {
                 throw new RuntimeException("Schema changes found!");
             }
@@ -76,6 +81,32 @@ public class E5DBServiceInitializer {
             System.exit(1);
         }
         return buildSessionFactory;
+    }
+
+    public static void setupGuardrails(String schemaName, SessionFactory buildSessionFactory) {
+        try (InputStream inputStream = E5DBServiceInitializer.class.getClassLoader()
+                .getResourceAsStream("externally-non-editable-fields.json")) {
+            if (inputStream == null) {
+                throw new RuntimeException("File not found in resources!");
+            }
+            ObjectMapper mapper = new ObjectMapper();
+            // Convert JSON into Map<String, List<String>>
+            Map<String, List<String>> editableFields =
+                    mapper.readValue(inputStream, new TypeReference<>() {
+                    });
+            if (editableFields.isEmpty()) {
+                logger.info("None of the Schemas has guardrails set");
+            } else {
+                for (Map.Entry<String, List<String>> entry : editableFields.entrySet()) {
+                    String key = entry.getKey();
+                    List<String> value = entry.getValue();
+                    logger.info("Processing table: {} with non-editable columns: {}", key, value);
+                    buildTriggers(value, key, schemaName, buildSessionFactory);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("externally-non-editable-fields.json does not exist", e);
+        }
     }
 
     /**
@@ -91,7 +122,7 @@ public class E5DBServiceInitializer {
         final String DEFAULT_IN_CLAUSE_PARAM_PADDING = "true";
         final String DEFAULT_MINIMUM_IDLE = "0";
         final String DEFAULT_IDLE_TIMEOUT = "300000";
-        final String DEFAULT_CONNECTION_TIMEOUT= "30000";
+        final String DEFAULT_CONNECTION_TIMEOUT = "30000";
         final String DEFAULT_MAXIMUM_POOL_SIZE = "5";
 
         //Get queryPlanCacheMaxSize property from dbProperties
@@ -331,7 +362,7 @@ public class E5DBServiceInitializer {
         var buildMetadata = getMetadata(serviceRegistry, modelClasses);
         ChangeResult changeResult;
         if ((changeResult = isChangesPresent(settings, buildMetadata, serviceRegistry)).isChangesAvailable()) {
-            throw new Exception("Schema changes not done!", ((Exception)changeResult.getResult()));
+            throw new Exception("Schema changes not done!", ((Exception) changeResult.getResult()));
         }
         List<String> schemaDifferences = new ArrayList<>();
         SchemaManagementTool schemaManagementTool = serviceRegistry.getService(SchemaManagementTool.class);
@@ -360,7 +391,7 @@ public class E5DBServiceInitializer {
             String line;
             while ((line = bufferedReader.readLine()) != null) {
                 if (line.trim().startsWith(ROOT_PROJECT_NAME)) {
-                    return line.trim().split("=")[1].replace("'", "").trim().replaceAll("[^A-Za-z0-9]","").toLowerCase();
+                    return line.trim().split("=")[1].replace("'", "").trim().replaceAll("[^A-Za-z0-9]", "").toLowerCase();
                 }
             }
         } catch (FileNotFoundException e) {
@@ -369,5 +400,109 @@ public class E5DBServiceInitializer {
             throw new RuntimeException(e);
         }
         return "";
+    }
+
+    /**
+     * Adds triggers to the table schema for the specified entity tables.
+     *
+     * <p>
+     * This method will add triggers to the table schema. It takes as input a list of entity table names.
+     * </p>
+     *
+     * @param tableColumnName a list of entity table names to which triggers will be added
+     * @param tableName       the name of the class to which the triggers will be added
+     * @param sessionFactory
+     */
+    public static void buildTriggers(List<String> tableColumnName, String tableName, String schemaName, SessionFactory sessionFactory) {
+        String functionName = tableName + "_trigger_function";
+        logger.info("Creating trigger function for table {} -> {}", tableName, functionName);
+        String triggerSql = String.format("""
+                CREATE OR REPLACE FUNCTION %s
+                RETURNS TRIGGER AS $$
+                BEGIN
+                    -- Check if bypass is enabled; default to restricted if unset
+                    IF coalesce(current_setting('app_context.allow_restricted', true), 'false') != 'true' THEN
+                        IF TG_OP = 'INSERT' THEN
+                            RAISE EXCEPTION 'Cannot insert new records. Access Restricted by workflow';
+                        ELSIF TG_OP = 'UPDATE' THEN
+                            -- Check if restricted columns are being changed
+                """
+                + buildUpdateTriggerCondition(tableColumnName)
+                + """
+                                RAISE EXCEPTION 'Cannot update person_id, person_name, or person_nationality. Access Restriced by workflow.';
+                            END IF;
+                        END IF;
+                    END IF;
+                    RETURN NEW; 
+                END;
+                $$ LANGUAGE plpgsql;
+                """, schemaName.concat("." + functionName + "()"));
+        Session session = null;
+        try {
+            session = sessionFactory.openSession();
+            session.doWork(connection -> {
+                try (PreparedStatement statement = connection.prepareStatement(triggerSql)) {
+                    statement.executeUpdate();
+                    logger.info("Successfully created trigger function: {}", functionName);
+
+                } catch (SQLException e) {
+                    logger.error("Failed to create trigger function: {}", functionName, e);
+                    throw new RuntimeException("Error creating trigger function: " + e.getMessage(), e);
+                }
+            });
+
+        } catch (Exception e) {
+            logger.error("Failed to create trigger function: {}", functionName, e);
+            throw new RuntimeException("Error creating trigger function: " + e.getMessage(), e);
+        } finally {
+            if (session != null) {
+                session.close();
+            }
+        }
+        createOrManageTrigger(tableName, schemaName, functionName, sessionFactory);
+
+    }
+
+    private static String buildUpdateTriggerCondition(List<String> tableColumnName) {
+        StringBuilder conditionBuilder = new StringBuilder();
+        for (int i = 0; i < tableColumnName.size(); i++) {
+            String columnName = tableColumnName.get(i);
+            conditionBuilder.append("NEW.").append(columnName).append(" IS DISTINCT FROM OLD.").append(columnName);
+            if (i < tableColumnName.size() - 1) {
+                conditionBuilder.append(" OR ");
+            }
+        }
+        return """   
+                IF\t"""
+                + conditionBuilder.toString() +
+                """
+                          THEN
+                        """;
+    }
+
+
+    private static void createOrManageTrigger(String tableName, String schemaName, String functionName, SessionFactory sessionfactory) {
+        logger.info("Attaching trigger function {} to table {}", functionName, tableName);
+        String triggerName = tableName + "_trigger";
+        try (Session session = sessionfactory.openSession()) {
+            session.doWork(connection -> {
+
+
+                String createTriggerSql = String.format(
+                        "CREATE OR REPLACE  TRIGGER %s BEFORE UPDATE ON %s FOR EACH ROW EXECUTE FUNCTION %s();",
+                        triggerName, tableName, functionName
+                );
+
+                try (PreparedStatement createStatement = connection.prepareStatement(createTriggerSql)) {
+                    createStatement.executeUpdate();
+                    logger.info("Successfully updated trigger: {}", triggerName);
+                } catch (SQLException e) {
+                    logger.error("Failed to manage trigger: {}", triggerName, e);
+                    throw new RuntimeException("Error managing trigger: " + e.getMessage(), e);
+                }
+            });
+        } catch (HibernateException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
