@@ -42,10 +42,10 @@ public class E5StateServiceTest {
 
         E5DBServiceProperties stateServiceProps = E5DBServiceProperties.builder()
                 .endpoint("localhost:5432")
-                .dbName("postgres")
-                .schemaName("public")
+                .dbName("yourdb")
+                .schemaName("schema1")
                 .dbUserName("postgres")
-                .dbPassword("postgres@001")
+                .dbPassword("pgadmin")
                 .dbProperties(customProperties).
                 build();
         sessionFactory = E5DBServiceInitializer.buildSessionFactory(stateServiceProps, false, true, "e5");
