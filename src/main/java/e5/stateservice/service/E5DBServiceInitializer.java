@@ -19,7 +19,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
@@ -73,7 +72,7 @@ public class E5DBServiceInitializer {
             if (allowSchemaChanges || canMakeSchemaChanges(settings, serviceRegistry, modelClasses)) {
                 buildSessionFactory = getMetadata(serviceRegistry, modelClasses).buildSessionFactory();
 
-                setupGuardrails(dbServiceProps.getSchemaName(), buildSessionFactory);
+                setupGuardrails(dbServiceProps.getSchemaName(), buildSessionFactory, modelClasses);
             } else {
                 throw new RuntimeException("Schema changes found!");
             }
@@ -377,13 +376,14 @@ public class E5DBServiceInitializer {
      *   <li>Otherwise, removes unnecessary guardrails and sets up new triggers for each table/column as specified.</li>
      *   <li>Logs progress and errors throughout the process.</li>
      * </ol>
+     *  @param schemaName         The name of the database schema where guardrails (triggers) should be managed.
      *
-     * @param schemaName         The name of the database schema where guardrails (triggers) should be managed.
      * @param buildSessionFactory The Hibernate {@link SessionFactory} used to interact with the database.
+     * @param modelClasses
      *
      *
      */
-    public static void setupGuardrails(String schemaName, SessionFactory buildSessionFactory) {
+    public static void setupGuardrails(String schemaName, SessionFactory buildSessionFactory, Set<Class<? extends E5State>> modelClasses) {
         try (InputStream inputStream = E5DBServiceInitializer.class.getClassLoader()
                 .getResourceAsStream("externally-non-editable-fields.json")) {
             if (inputStream == null) {
@@ -391,23 +391,21 @@ public class E5DBServiceInitializer {
             }
             ObjectMapper mapper = new ObjectMapper();
             // Convert JSON into Map<String, List<String>>
-            Map<String, List<String>> editableFields =
+            Map<String, List<String>> classWithNonEditableFieldsMap =
                     mapper.readValue(inputStream, new TypeReference<>() {
                     });
-            if (editableFields.isEmpty()) {
-                logger.info("No details to setup guardrails, checking for unnecessary guardrails if already present in DB!!!");
-                removeUnnecessaryGuardrails(editableFields, buildSessionFactory, schemaName);
+            removeUnnecessaryGuardrails(modelClasses, buildSessionFactory);
+            if (classWithNonEditableFieldsMap.isEmpty()) {
+                logger.info("No guard specified in schema, checking for any guardrails if already present in DB!!!");
             } else {
-
-                logger.info("Setting up guardrails for the following tables: {}", editableFields.keySet());
-                for (Map.Entry<String, List<String>> entry : editableFields.entrySet()) {
+                logger.info("Setting up guardrails for the following tables: {}", classWithNonEditableFieldsMap.keySet());
+                for (Map.Entry<String, List<String>> entry : classWithNonEditableFieldsMap.entrySet()) {
                     String key = entry.getKey();
                     List<String> value = entry.getValue();
                     logger.info("Processing table: {} with non-editable columns: {}", key, value);
                     buildTriggers(value, key, schemaName, buildSessionFactory);
                 }
                 logger.info("Setting up guardrails Complete. Now checking for unnecessary guardrails if already present!!!");
-                removeUnnecessaryGuardrails(editableFields, buildSessionFactory, schemaName);
             }
         } catch (FileNotFoundException e){
             logger.error("externally-non-editable-fields.json does not exist", e);
@@ -421,83 +419,56 @@ public class E5DBServiceInitializer {
     /**
      * Removes unnecessary guardrails (triggers) from the database schema.
      * <p>
-     * This method compares the set of tables that currently have guardrail triggers in the database
-     * with the set of tables defined in the provided schema. If any tables have triggers
-     * but are not present in the schema, their triggers are removed.
+     * This method removes all the guard rails currently present in the DB.
      * <ul>
      *   <li>Fetches all tables with triggers in the given schema.</li>
      *   <li>Identifies tables that no longer require guardrails by comparing with editableFields.</li>
      *   <li>Drops triggers for those tables to keep the schema clean and up-to-date.</li>
      * </ul>
      *
-     * @param editableFields         Map of table names to their editable fields, as defined in the guardrails config.
+     * @param stateClasses         Map of table names to their editable fields, as defined in the guardrails config.
      * @param buildSessionFactory    The Hibernate SessionFactory to use for DB access.
-     * @param schemaName             The name of the schema to operate on.
      * @author vishal-e5
      * @date 2024-06-09
      */
-    private static void removeUnnecessaryGuardrails(Map<String, List<String>> editableFields, SessionFactory buildSessionFactory, String schemaName) {
-        List<String> newTablesWithGuardrails = editableFields.keySet().stream().toList();
+    private static void removeUnnecessaryGuardrails(Set<Class<? extends E5State>> stateClasses, SessionFactory buildSessionFactory) {
+        List<String> stateClassList = stateClasses.stream()
+                .map(Class::getSimpleName)
+                .map(String::toLowerCase)
+                .toList();
         try(Session session = buildSessionFactory.openSession()){
-
             session.doWork(connection -> {
+                if (stateClassList.isEmpty()) {
+                    logger.info("No State Classes Exists");
+                }
+                logger.info("Deleting all the triggers from state tables before deployment : {}", stateClassList);
+                String tablesToRemoveGuardrailsStr = stateClassList.stream()
+                        .map(table -> "'" + table.replace("'", "''") + "'")
+                        .collect(java.util.stream.Collectors.joining(","));
+                String deleteUnnecessaryTriggers = """
+                            DO $$
+                            DECLARE
+                                trigger_rec RECORD;
+                            BEGIN
+                                FOR trigger_rec IN (
+                                    SELECT trigger_name, event_object_table
+                                    FROM information_schema.triggers
+                                    WHERE event_object_table IN (%s) -- Replace with your table names
+                                )
+                                LOOP
+                                    EXECUTE 'DROP TRIGGER IF EXISTS ' || quote_ident(trigger_rec.trigger_name) || ' ON ' || quote_ident(trigger_rec.event_object_table) || ';';
+                                END LOOP;
+                            END $$;
+                            """.formatted(tablesToRemoveGuardrailsStr);
 
-                List<String> tablesToRemoveGuardrails;
-                String fetchTriggerQuery = """
-                    SELECT DISTINCT event_object_table AS table_name
-                    FROM information_schema.triggers
-                    WHERE trigger_schema = '%s';
-                    """.formatted(schemaName);
-                try (PreparedStatement statement = connection.prepareStatement(fetchTriggerQuery)) {
-
-                    List<String> currentTablesWithGuardrails = new ArrayList<>();
-                    ResultSet rs = statement.executeQuery();
-                    while (rs.next()) {
-                        String tableName = rs.getString("table_name");
-                        if (tableName != null && !tableName.isEmpty()) {
-                            currentTablesWithGuardrails.add(tableName);
-                        }
-                    }
-                    // Find tables that are in currentTablesWithGuardrails but not in newTablesWithGuardrails using Java streams
-                    tablesToRemoveGuardrails = currentTablesWithGuardrails.stream()
-                            .filter(table -> !newTablesWithGuardrails.contains(table))
-                            .toList();
-
+                try (PreparedStatement statement = connection.prepareStatement(deleteUnnecessaryTriggers)) {
+                    statement.executeQuery();
+                    logger.info("Triggers removed for all tables before deployment {}", stateClassList);
                 } catch (SQLException e) {
-                    logger.error("Failed to fetch trigger");
-                    throw new RuntimeException("Error while fetching triggers for deletion: " + e.getMessage(), e);
+                    logger.error("Failed to delete trigger");
+                    throw new RuntimeException("Failed to delete trigger: " + e.getMessage(), e);
                 }
-                if (tablesToRemoveGuardrails.isEmpty()) {
-                    logger.info("No unnecessary guardrails needs to be deleted");
-                } else {
-                    logger.info("Tables for which triggers should be to removed, since they are not defined in the schema: {}", tablesToRemoveGuardrails);
-                    String tablesToRemoveGuardrailsStr = tablesToRemoveGuardrails.stream()
-                            .map(table -> "'" + table.replace("'", "''") + "'")
-                            .collect(java.util.stream.Collectors.joining(","));
-                    String deleteUnnecessaryTriggers = """
-                                DO $$
-                                DECLARE
-                                    trigger_rec RECORD;
-                                BEGIN
-                                    FOR trigger_rec IN (
-                                        SELECT trigger_name, event_object_table
-                                        FROM information_schema.triggers
-                                        WHERE event_object_table IN (%s) -- Replace with your table names
-                                    )
-                                    LOOP
-                                        EXECUTE 'DROP TRIGGER IF EXISTS ' || quote_ident(trigger_rec.trigger_name) || ' ON ' || quote_ident(trigger_rec.event_object_table) || ';';
-                                    END LOOP;
-                                END $$;
-                                """.formatted(tablesToRemoveGuardrailsStr);
 
-                    try (PreparedStatement statement = connection.prepareStatement(deleteUnnecessaryTriggers)) {
-                        statement.executeQuery();
-                        logger.info("Triggers are deleted for Tables for which guardrails were not specified {}", tablesToRemoveGuardrails);
-                    } catch (SQLException e) {
-                        logger.error("Failed to delete unnecessary trigger");
-                        throw new RuntimeException("Failed to delete unnecessary trigger: " + e.getMessage(), e);
-                    }
-                }
             });
 
         } catch (Exception e) {
