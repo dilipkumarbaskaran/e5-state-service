@@ -71,7 +71,13 @@ public final class E5StateService {
         Transaction transaction = null;
         try (Session session = sessionFactory.openSession()) {
             transaction = session.beginTransaction();
-            setAllowRestricted(session, true);
+            boolean sandboxExecution = session.doReturningWork(connection -> {
+                String databaseProductName = connection.getMetaData().getDatabaseProductName();
+                return "H2".equalsIgnoreCase(databaseProductName);
+            });
+            if (!sandboxExecution) {
+                setAllowRestricted(session, true);
+            }
             action.accept(session);
             transaction.commit();
         } catch (RuntimeException e) {

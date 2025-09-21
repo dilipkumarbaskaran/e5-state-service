@@ -71,8 +71,9 @@ public class E5DBServiceInitializer {
         try {
             if (allowSchemaChanges || canMakeSchemaChanges(settings, serviceRegistry, modelClasses)) {
                 buildSessionFactory = getMetadata(serviceRegistry, modelClasses).buildSessionFactory();
-
-                setupGuardrails(dbServiceProps.getSchemaName(), buildSessionFactory, modelClasses);
+                if (isProd) {
+                    setupGuardrails(dbServiceProps.getSchemaName(), buildSessionFactory, modelClasses);
+                }
             } else {
                 throw new RuntimeException("Schema changes found!");
             }
